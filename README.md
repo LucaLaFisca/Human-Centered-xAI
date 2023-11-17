@@ -149,8 +149,13 @@ The result provided by this repository consists of the final latent space within
 In our example, we have intentionnaly biased the dataset by applying rotation of [0,90] degrees to cat images and rotation of [90,180] degrees to dog images.
 
 Here is the added value of using the AAE model instead of a common classifier (Resnet34):
+
 ![latent spaces](https://github.com/LucaLaFisca/Human-Centered-xAI/blob/main/images/latent_spaces.png)
+
 When navigating along the most discriminant dimension, we can clearly observe the effect of the rotation on the classification on the AAE latent space:
+
 ![rotation impact on AAE](https://github.com/LucaLaFisca/Human-Centered-xAI/blob/main/images/rotation_impact_xAAEnet.svg)
+
 While, on the initial Resnet34 model, the effect of the rotation cannot be identified:
+
 ![rotation impact on Resnet34](https://github.com/LucaLaFisca/Human-Centered-xAI/blob/main/images/rotation_impact_Resnet34.svg)
