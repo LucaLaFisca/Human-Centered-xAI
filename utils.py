@@ -60,6 +60,37 @@ def label_func(f):
     return lab
 
 
+# Compute the regularized linear regression of the latent space wrt the labels
+def distrib_regul_regression(z, target, nbins: int=100, get_reg: bool=False):
+    bin_edges = np.linspace(target.min(), target.max(), nbins+1)
+    # Assign each value in the data to its corresponding category based on the bin edges
+    labels = np.digitize(target, bin_edges)
+    bin_index_per_label = [int(label) for label in labels]
+
+    # calculate empirical (original) label distribution: [Nb,]
+    # "Nb" is the number of bins
+    Nb = max(bin_index_per_label) + 1
+    num_samples_of_bins = dict(Counter(bin_index_per_label))
+    emp_label_dist = [num_samples_of_bins.get(i, 0) for i in range(Nb)]
+
+    # lds_kernel_window: [ks,], here for example, we use gaussian, ks=5, sigma=2
+    lds_kernel_window = get_lds_kernel_window(kernel='gaussian', ks=5, sigma=2)
+    # calculate effective label distribution: [Nb,]
+    eff_label_dist = convolve1d(np.array(emp_label_dist), weights=lds_kernel_window, mode='constant')
+
+    # Use re-weighting based on effective label distribution, sample-wise weights: [Ns,]
+    eff_num_per_label = [eff_label_dist[bin_idx] for bin_idx in bin_index_per_label]
+    weights = [np.float32(1 / x) for x in eff_num_per_label]
+
+    reg = LinearRegression().fit(z, target.view(-1), sample_weight=weights)
+    out = np.dot(z, reg.coef_) + reg.intercept_
+
+    if get_reg:
+        return out, reg
+    else:
+        return out
+
+
 def compute_main_direction(predictions_embedded, safelab):
 
     # Calculate the mean of x and y for the darkest and lightest colors

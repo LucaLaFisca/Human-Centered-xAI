@@ -1,14 +1,20 @@
+import torch
 from fastai.vision.all import *
 from fastai.data.all import *
 
 from model import AAEGen
-from utils import label_func, FreezeDiscriminator, GetLatentSpace, LossAttrMetric
+from utils import label_func, FreezeDiscriminator, GetLatentSpace, LossAttrMetric, distrib_regul_regression
+
+from sklearn.manifold import TSNE
+import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
+import seaborn as sns
 
 
 
 ### Define the Dataloader
-chemin_donnees = untar_data(URLs.PETS) #checker les autres databases dispo
-print(chemin_donnees.ls())
+data_path = untar_data(URLs.PETS) #checker les autres databases dispo
+print(data_path.ls())
 
 catblock = MultiCategoryBlock(encoded=True, vocab=['cat', 'dog'])
 dblock = DataBlock(
@@ -21,7 +27,7 @@ dblock = DataBlock(
 )
 
 # Créez un DataLoader
-dls = dblock.dataloaders(chemin_donnees/"images", bs=16, drop_last=True)
+dls = dblock.dataloaders(data_path/"images", bs=16, drop_last=True)
 
 ### Train Autoencoder ###
 metrics = [LossAttrMetric("recons_loss"), accuracy_multi]
@@ -84,9 +90,6 @@ new_zi = torch.vstack((new_zi,learn.zi_valid))
 torch.save(new_zi,'z_aae.pt')
 print(new_zi.shape)
 
-from sklearn.manifold import TSNE
-from fastAI.utils import distrib_regul_regression
-import matplotlib.colors as mcolors
 
 tsne = TSNE(random_state=42)
 # z = new_zi.view(-1, 128)
