@@ -120,7 +120,13 @@ def __init__(
                 nn.BatchNorm2d(channels * 4),
                 nonlinearity,
             )
+        )
+        channels *= 4
+        size *= 4
+    decoder.append(nn.ConvTranspose2d(channels, input_channels, 5, 2, 2, 1))
+    self.decoder = nn.Sequential(*decoder)
 ```
+
 Then, in the main.py file, you can instantiate it using:
 ```
 model = AAE(
@@ -131,9 +137,17 @@ model = AAE(
 )
 ```
 
-        )
-        channels *= 4
-        size *= 4
-    decoder.append(nn.ConvTranspose2d(channels, input_channels, 5, 2, 2, 1))
-    self.decoder = nn.Sequential(*decoder)
+### 3. Train the model and display the resulting latent space
+Run the main.py script in your command prompt
 ```
+python main.py
+```
+
+## Results
+The result provided by this repository consists of the final latent space within which you can navigate to identify the most important features for the classification.
+
+In our example, we have intentionnaly biased the dataset by applying rotation of [0,90] degrees to dog images and rotation of [90,180] degrees to cat images.
+
+Here is the added value of using the AAE model instead of a common classifier:
+
+When navigating along the most discriminant dimension, we can clearly observe the effect of the rotation on the classification:
