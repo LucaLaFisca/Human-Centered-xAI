@@ -120,6 +120,17 @@ def __init__(
                 nn.BatchNorm2d(channels * 4),
                 nonlinearity,
             )
+```
+Then, in the main.py file, you can instantiate it using:
+```
+model = AAE(
+        input_size=128,
+        input_channels=3,
+        encoding_dims=128,
+        classes=2,
+)
+```
+
         )
         channels *= 4
         size *= 4
