@@ -2,7 +2,7 @@ import torch
 from fastai.vision.all import *
 from fastai.data.all import *
 
-from model import AAEGen
+from model import AAE
 from utils import label_func, FreezeDiscriminator, GetLatentSpace, LossAttrMetric, distrib_regul_regression
 
 from sklearn.manifold import TSNE
@@ -28,6 +28,14 @@ dblock = DataBlock(
 
 # Créez un DataLoader
 dls = dblock.dataloaders(data_path/"images", bs=16, drop_last=True)
+
+# Define the model
+model = AAE(
+        input_size=128,
+        input_channels=3,
+        encoding_dims=128,
+        classes=2,
+)
 
 ### Train Autoencoder ###
 metrics = [LossAttrMetric("recons_loss"), accuracy_multi]
