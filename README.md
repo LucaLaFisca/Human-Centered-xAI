@@ -54,7 +54,7 @@ dls = dblock.dataloaders(data_path/"images", bs=16, drop_last=True)
 
 ### 2. Define your model
 The general architecture is an Adversarial AutoEncoder (AAE), as shown in the following figure:
-
+![Architecture](https://github.com/LucaLaFisca/Human-Centered-xAI/blob/main/images/architecture.png)
 The model MUST be an autoencoder and additional fully connected layers should be defined for the classifier and the discriminator.
 You can modify the provided one in the [model.py](https://github.com/LucaLaFisca/Human-Centered-xAI/blob/main/model.py) file.
 ```
