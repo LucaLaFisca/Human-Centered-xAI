@@ -2,15 +2,6 @@ import torch
 from fastai.data.all import *
 
 
-def label_func(f): 
-    name = f.name #on veut accéder aux noms uniquement
-    if name[0].isupper(): #on veut tester la première lettre uniquement donc on applique "isupper" au premier élément de name (name[0])
-        lab = torch.tensor([1, 0], dtype=torch.float32)
-    else:
-        lab = torch.tensor([0, 1], dtype=torch.float32)
-    return lab
-
-
 class FreezeDiscriminator(Callback):
     def before_batch(self):
         if self.gen_train == 0:
@@ -42,6 +33,31 @@ class GetLatentSpace(Callback):
                     self.learn.zi_valid = torch.vstack((self.learn.zi_valid,self.zi))
                 else:
                     self.learn.zi_valid = torch.vstack((self.learn.zi_valid,self.generator.zi))
+
+class LossAttrMetric(Metric):
+    def __init__(self, attr):
+        self.attr_name = attr
+        self.vals = []
+    def reset(self):
+        self.vals = []
+    def accumulate(self, learn):
+        setattr(self, self.attr_name, getattr(learn, self.attr_name))
+        self.vals.append(getattr(self, self.attr_name))
+    @property
+    def value(self):
+        return torch.mean(torch.tensor(self.vals))
+    @property
+    def name(self):
+        return self.attr_name
+
+
+def label_func(f): 
+    name = f.name #on veut accéder aux noms uniquement
+    if name[0].isupper(): #on veut tester la première lettre uniquement donc on applique "isupper" au premier élément de name (name[0])
+        lab = torch.tensor([1, 0], dtype=torch.float32)
+    else:
+        lab = torch.tensor([0, 1], dtype=torch.float32)
+    return lab
 
 
 def compute_main_direction(predictions_embedded, safelab):

@@ -1,9 +1,8 @@
 from fastai.vision.all import *
 from fastai.data.all import *
-from fastAI.utils import LossAttrMetric
 
 from model import AAEGen
-from utils import label_func, FreezeDiscriminator, GetLatentSpace
+from utils import label_func, FreezeDiscriminator, GetLatentSpace, LossAttrMetric
 
 
 
