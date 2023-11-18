@@ -127,12 +127,12 @@ class AAE(nn.Module):
         delta = .5
         huber = nn.HuberLoss(delta=delta)
 
-        recons_loss = huber(self.input_image, self.decoder_output)
+        self.recons_loss = huber(self.input_image, self.decoder_output)
 
         bce = nn.BCEWithLogitsLoss()
         classif_loss = bce(output, target)
             
-        return recons_loss + .001*classif_loss
+        return self.recons_loss + .001*classif_loss
 
     def classif_loss_func(self, output, target):
         delta = .5
