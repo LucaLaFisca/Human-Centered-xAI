@@ -1,12 +1,13 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.autograd import Variable
 from fastai.vision.all import *
 from fastai.data.all import *
 
-dev = 'cuda:3'
-torch.cuda.set_device(dev)
+# dev = 'cuda:3'
+# torch.cuda.set_device(dev)
+dev = torch.cuda.current_device()
+
 
 class AAE(nn.Module):
     def __init__(
