@@ -1,5 +1,6 @@
 import torch
 from fastai.data.all import *
+from fastai.vision.all import *
 
 
 class FreezeDiscriminator(Callback):

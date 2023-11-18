@@ -2,12 +2,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
+from fastai.vision.all import *
 from fastai.data.all import *
 
 dev = 'cuda:3'
 torch.cuda.set_device(dev)
 
-class AAEGen(nn.Module):
+class AAE(nn.Module):
     def __init__(
         self,
         input_size,
@@ -18,7 +19,7 @@ class AAEGen(nn.Module):
         classes=2,
         gen_train=True
     ):
-        super(AAEGen, self).__init__()
+        super(AAE, self).__init__()
 
         self.gen_train = gen_train
         self.count_acc = 1
