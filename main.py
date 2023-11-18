@@ -3,7 +3,7 @@ from fastai.vision.all import *
 from fastai.data.all import *
 
 from model import AAE
-from utils import label_func, FreezeDiscriminator, GetLatentSpace, LossAttrMetric, distrib_regul_regression
+from utils import label_func, FreezeDiscriminator, GetLatentSpace, LossAttrMetric, distrib_regul_regression, compute_main_direction
 
 from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
@@ -77,7 +77,6 @@ monitor_loss = 'valid_loss'
 learn = Learner(dls, model, loss_func=model.classif_loss_func, metrics=metrics)
 
 model_file = 'cat_dog_aae_classif_test'
-learning_rate = learn.lr_find()
 learn.fit(100, lr=1e-2,
             cbs=[GradientAccumulation(n_acc=16*4),
                  TrackerCallback(monitor=monitor_loss),
@@ -90,10 +89,10 @@ learn.fit(100, lr=1e-2,
 learn.load(f'models/{model_file}', strict=False)
 # compute and display the latent space
 learn.zi_valid = torch.tensor([]).to(dev)
-learn.get_preds(ds_idx=0,cbs=[GetLatent()])
+learn.get_preds(ds_idx=0,cbs=[GetLatentSpace()])
 new_zi = learn.zi_valid
 learn.zi_valid = torch.tensor([]).to(dev)
-learn.get_preds(ds_idx=1,cbs=[GetLatent()])
+learn.get_preds(ds_idx=1,cbs=[GetLatentSpace()])
 new_zi = torch.vstack((new_zi,learn.zi_valid))
 torch.save(new_zi,'z_aae.pt')
 print(new_zi.shape)
