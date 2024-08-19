@@ -1,5 +1,8 @@
 # Human-Centered-xAI
-Introduce explainability into deep learning models
+Introduce explainability into deep learning models.
+
+This repository is related to the Chapter 7 of the thesis:
+"[Human-Centered xAI: Towards Overcoming Interpretation Biases in Biomedical Signal Analysis](https://hdl.handle.net/20.500.12907/48572)".
 
 ## Requirements
 The library versions used here are:
