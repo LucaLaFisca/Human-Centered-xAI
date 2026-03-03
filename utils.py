@@ -6,6 +6,91 @@ from sklearn.linear_model import LinearRegression
 from collections import Counter
 from scipy.ndimage import convolve1d, gaussian_filter1d
 
+class UnfreezeFcCritAdaptative(Callback):
+    def __init__(self, switch_every: int = 3, low_threshold: float = 0.15, high_threshold: float = 0.60, window_size: int = 3):
+        self.switch_every = switch_every
+        self.low_threshold = low_threshold  
+        self.high_threshold = high_threshold  
+        self.window_size = window_size  
+        self.valid_loss_history = []  
+        self.gen_train_epochs = 0  
+
+    def before_epoch(self):
+        # Get last valid_loss
+        current_valid_loss = self.learn.recorder.values[-1][1] if self.learn.recorder.values else float('inf')
+        self.valid_loss_history.append(current_valid_loss)
+
+        if len(self.valid_loss_history) >= self.window_size:
+            avg_valid_loss = np.mean(self.valid_loss_history[-self.window_size:])
+        else:
+            avg_valid_loss = current_valid_loss
+
+        # Decide to train Generator or Discriminator
+        if self.epoch < 3:  
+            print("train discriminator (initial phase)")
+            self.learn.model.gen_train = False
+            for name, param in self.learn.model.named_parameters():
+                if "fc_crit" in name:
+                    param.requires_grad_(True)
+                else:
+                    param.requires_grad_(False)
+            self.gen_train_epochs = 0
+        else:
+            if avg_valid_loss < self.low_threshold:  # Generator is too strong
+                print("train discriminator (generator too strong, avg_valid_loss={:.4f})".format(avg_valid_loss))
+                self.learn.model.gen_train = False
+                for name, param in self.learn.model.named_parameters():
+                    if "fc_crit" in name:
+                        param.requires_grad_(True)
+                    else:
+                        param.requires_grad_(False)
+                self.gen_train_epochs = 0
+            elif avg_valid_loss > self.high_threshold:  # Discriminator is too strong
+                print("train generator (discriminator too strong, avg_valid_loss={:.4f})".format(avg_valid_loss))
+                self.learn.model.gen_train = True
+                for name, param in self.learn.model.named_parameters():
+                    if "fc_crit" in name:
+                        param.requires_grad_(False)
+                    else:
+                        param.requires_grad_(True)
+                self.gen_train_epochs += 1
+            else:
+                # Training both
+                if (self.epoch + 1) % self.switch_every == 0:
+                    print("train discriminator (periodic switch, avg_valid_loss={:.4f})".format(avg_valid_loss))
+                    self.learn.model.gen_train = False
+                    for name, param in self.learn.model.named_parameters():
+                        if "fc_crit" in name:
+                            param.requires_grad_(True)
+                            param.lr_mult = 1.0
+                        else:
+                            param.requires_grad_(True)  
+                            param.lr_mult = 0.1 
+                    self.gen_train_epochs = 0
+                else:
+                    print("train generator (periodic switch, avg_valid_loss={:.4f})".format(avg_valid_loss))
+                    self.learn.model.gen_train = True
+                    for name, param in self.learn.model.named_parameters():
+                        if "fc_crit" in name:
+                            param.requires_grad_(True)  
+                            param.lr_mult = 0.1  
+                        else:
+                            param.requires_grad_(True)
+                            param.lr_mult = 1.0 
+                    self.gen_train_epochs += 1
+        
+        # Limit the number of consecutive epoch while training Generator
+        if self.gen_train_epochs >= 3:
+            print("train discriminator (too many generator epochs, avg_valid_loss={:.4f})".format(avg_valid_loss))
+            self.learn.model.gen_train = False
+            for name, param in self.learn.model.named_parameters():
+                if "fc_crit" in name:
+                    param.requires_grad_(True)
+                    param.lr_mult = 1.0
+                else:
+                    param.requires_grad_(False)
+            self.gen_train_epochs = 0
+        
 
 class FreezeDiscriminator(Callback):
     def before_batch(self):

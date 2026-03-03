@@ -3,7 +3,7 @@ from fastai.vision.all import *
 from fastai.data.all import *
 
 from model import AAE
-from utils import label_func, FreezeDiscriminator, GetLatentSpace, LossAttrMetric, distrib_regul_regression, compute_main_direction
+from utils import UnfreezeFcCritAdaptative, label_func, FreezeDiscriminator, GetLatentSpace, LossAttrMetric, distrib_regul_regression, compute_main_direction
 
 from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
@@ -63,7 +63,8 @@ learn.fit(100, lr=5e-3,
                  TrackerCallback(),
                  SaveModelCallback(fname=model_file),
                  EarlyStoppingCallback(min_delta=1e-4,patience=10),
-                 FreezeDiscriminator()])
+               #   FreezeDiscriminator()]),
+                 UnfreezeFcCritAdaptative()])
 
 state_dict = torch.load(f'models/{model_file}.pth')
 model.load_state_dict(state_dict, strict=False)
@@ -82,7 +83,8 @@ learn.fit(100, lr=1e-2,
                  TrackerCallback(monitor=monitor_loss),
                  SaveModelCallback(fname=model_file,monitor=monitor_loss),
                  EarlyStoppingCallback(min_delta=1e-4,patience=10,monitor=monitor_loss),
-                 FreezeDiscriminator()])
+               #   FreezeDiscriminator()])
+                 UnfreezeFcCritAdaptative()])
 
 
 ### Display the latent space ###
