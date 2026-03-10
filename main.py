@@ -88,7 +88,8 @@ learn.fit(100, lr=1e-2,
 
 
 ### Display the latent space ###
-learn.load(f'models/{model_file}', strict=False)
+#learn.load(f'models/{model_file}', strict=False)
+learn.load(model_file, strict=False)
 # compute and display the latent space
 learn.zi_valid = torch.tensor([]).to(dev)
 learn.get_preds(ds_idx=0,cbs=[GetLatentSpace()])
