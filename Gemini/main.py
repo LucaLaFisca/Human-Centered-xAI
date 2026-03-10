@@ -26,7 +26,7 @@ dblock = DataBlock(
     batch_tfms=[Normalize.from_stats(*imagenet_stats)]
 )
 
-dls = dblock.dataloaders(images_path, bs=16, drop_last=True)
+dls = dblock.dataloaders(images_path, bs=16, drop_last=True,num_workers=0)
 print(f"Vocab: {dls.vocab}") # ['cat', 'dog']
 
 # 2. Model Init
