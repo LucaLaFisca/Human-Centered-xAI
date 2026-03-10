@@ -27,7 +27,7 @@ dblock = DataBlock(
 )
 
 # Créez un DataLoader
-dls = dblock.dataloaders(data_path/"images", bs=16, drop_last=True)
+dls = dblock.dataloaders(data_path/"images", bs=16, drop_last=True,num_workers=1)
 
 # Define the model
 model = AAE(
