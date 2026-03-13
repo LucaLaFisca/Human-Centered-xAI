@@ -91,7 +91,9 @@ learn.fit(100, lr=1e-2,
 #learn.load(f'models/{model_file}', strict=False)
 learn.load(model_file, strict=False)
 # compute and display the latent space
+dev = f'cuda:{torch.cuda.current_device()}'
 learn.zi_valid = torch.tensor([]).to(dev)
+
 learn.get_preds(ds_idx=0,cbs=[GetLatentSpace()])
 new_zi = learn.zi_valid
 learn.zi_valid = torch.tensor([]).to(dev)
