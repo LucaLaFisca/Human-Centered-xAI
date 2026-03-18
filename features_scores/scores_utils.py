@@ -8,13 +8,24 @@ def compute_fft_scores(image_paths, radius=30):
     """
     Calcule le ratio d'énergie haute fréquence pour une liste d'images.
     Retourne un dictionnaire { 'nom_image.jpg': score_hf }.
+    En cas d'erreur sur une image, lui assigne le score de l'image précédente.
     """
     scores = {}
+    
+    # VARIABLE D'ÉTAT : Mémorise le dernier score calculé avec succès.
+    # Initialisée à 0.0 pour couvrir le cas où la toute première image serait corrompue.
+    last_valid_score = 0.0 
     
     for img_path in tqdm(image_paths, desc="Calcul des scores FFT"):
         try:
             # 1. Chargement et conversion en niveaux de gris
             img = read_image(str(img_path), mode=ImageReadMode.GRAY)
+
+            # SECURITE 1 : Si le mode GRAY a échoué et que l'image a plus d'un canal
+            if img.shape[0] > 1:
+                # On ne prend que les 3 premiers canaux (ignore l'alpha) et on force en gris
+                img = tfms.rgb_to_grayscale(img[:3])
+
             img = tfms.resize(img, [200, 200], antialias=True).squeeze()
 
             # 2. Passage dans le domaine fréquentiel et centrage
@@ -37,8 +48,17 @@ def compute_fft_scores(image_paths, radius=30):
             hf_ratio = (hf_energy / total_energy).item() if total_energy > 0 else 0
             scores[img_path.name] = hf_ratio
             
+            # MISE À JOUR DE LA MÉMOIRE : 
+            # Si on arrive ici, c'est que tout a fonctionné.
+            # On écrase l'ancienne valeur par ce nouveau score valide.
+            last_valid_score = hf_ratio
+            
         except Exception as e:
-            print(f"Erreur de traitement sur {img_path.name}: {e}")
+            # IMPUTATION EN CAS DE CRASH :
+            # L'image a déclenché une erreur (ex: read_image a échoué ou shape n'est pas 2D).
+            # On utilise la mémoire (last_valid_score) pour ne pas laisser de trou dans le dictionnaire.
+            print(f"Erreur sur {img_path.name}: {e} -> Assignation du score précédent : {last_valid_score:.4f}")
+            scores[img_path.name] = last_valid_score
             
     return scores
 
@@ -76,17 +96,17 @@ def find_otsu_threshold(im_gray):
 
     return seuil_optimal
 
-def complexity_scores(pixels):
+#def complexity_scores(pixels):
     # Masque pour isoler le sujet (le fond est blanc, donc < T)
-    pixels_sujet = im_gray[im_gray < T]
+    #pixels_sujet = im_gray[im_gray < T]
 
     # --- Feature 1 : Variance du sujet ---
     # Mesure l'étalement de la cloche "Sujet" dans l'histogramme
-    score_variance = pixels_sujet.var().item()
+    #score_variance = pixels_sujet.var().item()
 
     # ---- ENTROPIE CALCUL ----
-    if len(pixels) == 0: return 0
+    #if len(pixels) == 0: return 0
     # On refait un mini-histogramme du sujet uniquement
-    h = torch.histc(pixels, bins=256, min=0, max=255)
-    p = h[h > 0] / h.sum() # On évite les log(0)
-    return -torch.sum(p * torch.log2(p)).item()
+    #h = torch.histc(pixels, bins=256, min=0, max=255)
+    #p = h[h > 0] / h.sum() # On évite les log(0)
+    #return -torch.sum(p * torch.log2(p)).item()
