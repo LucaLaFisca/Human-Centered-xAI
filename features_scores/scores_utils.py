@@ -8,55 +8,51 @@ def compute_fft_scores(image_paths, radius=30):
     """
     Calcule le ratio d'énergie haute fréquence pour une liste d'images.
     Retourne un dictionnaire { 'nom_image.jpg': score_hf }.
-    En cas d'erreur sur une image, lui assigne le score de l'image précédente.
+    En cas d'erreur sur une image, assignation du score de l'image précédente.
     """
     scores = {}
     
-    # VARIABLE D'ÉTAT : Mémorise le dernier score calculé avec succès.
-    # Initialisée à 0.0 pour couvrir le cas où la toute première image serait corrompue.
     last_valid_score = 0.0 
     
+    # tqdm for displaying progress bar
     for img_path in tqdm(image_paths, desc="Calcul des scores FFT"):
         try:
-            # 1. Chargement et conversion en niveaux de gris
+
+            # Read image in grayscale
             img = read_image(str(img_path), mode=ImageReadMode.GRAY)
 
-            # SECURITE 1 : Si le mode GRAY a échoué et que l'image a plus d'un canal
+            # Debug in case of shape issues (alpha channel, etc.)
             if img.shape[0] > 1:
                 # On ne prend que les 3 premiers canaux (ignore l'alpha) et on force en gris
                 img = tfms.rgb_to_grayscale(img[:3])
 
             img = tfms.resize(img, [200, 200], antialias=True).squeeze()
 
-            # 2. Passage dans le domaine fréquentiel et centrage
+            # Application of FFT
             fshift = torch.fft.fftshift(torch.fft.fft2(img))
             magnitude_spectrum = torch.abs(fshift)
 
-            # 3. Création du masque de filtrage (basses fréquences)
+            # Mask to separate low and high frequencies
             rows, cols = img.shape
             crow, ccol = rows // 2, cols // 2
             y = torch.arange(-crow, rows - crow).view(-1, 1)
             x = torch.arange(-ccol, cols - ccol).view(1, -1)
             mask = (x**2 + y**2 <= radius**2)
 
-            # 4. Bilan énergétique
+            # Extraction of energy values
             total_energy = torch.sum(magnitude_spectrum)
             lf_energy = torch.sum(magnitude_spectrum[mask])
             hf_energy = total_energy - lf_energy
 
-            # 5. Calcul et stockage du ratio
+            # Evaluating the score (ratio of high frequency energy)
             hf_ratio = (hf_energy / total_energy).item() if total_energy > 0 else 0
             scores[img_path.name] = hf_ratio
             
-            # MISE À JOUR DE LA MÉMOIRE : 
-            # Si on arrive ici, c'est que tout a fonctionné.
-            # On écrase l'ancienne valeur par ce nouveau score valide.
+            # Updating the last valid score
             last_valid_score = hf_ratio
             
         except Exception as e:
-            # IMPUTATION EN CAS DE CRASH :
-            # L'image a déclenché une erreur (ex: read_image a échoué ou shape n'est pas 2D).
-            # On utilise la mémoire (last_valid_score) pour ne pas laisser de trou dans le dictionnaire.
+            # In case of error (e.g., read_image fails or shape is not 2D), assign the last valid score to the current image
             print(f"Erreur sur {img_path.name}: {e} -> Assignation du score précédent : {last_valid_score:.4f}")
             scores[img_path.name] = last_valid_score
             
