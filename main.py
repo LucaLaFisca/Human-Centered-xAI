@@ -99,13 +99,13 @@ new_zi = learn.zi_valid
 learn.zi_valid = torch.tensor([]).to(dev)
 learn.get_preds(ds_idx=1,cbs=[GetLatentSpace()])
 new_zi = torch.vstack((new_zi,learn.zi_valid))
-torch.save(new_zi,'z_aae.pt')
+torch.save(new_zi,'z_aae.pt') # sauvegarde de l'espace latent 
 print(new_zi.shape)
 
 
 tsne = TSNE(random_state=42)
-# z = new_zi.view(-1, 128)
-z = new_zi.view(-1, 512)
+z = new_zi.view(-1, 128)
+# z = new_zi.view(-1, 512) # j'ai changé la valeur à 128.
 predictions_embedded = tsne.fit_transform(z.cpu().detach().numpy())
 
 #Compute linear regression from 2D space
