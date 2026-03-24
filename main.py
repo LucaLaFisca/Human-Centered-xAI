@@ -104,8 +104,8 @@ print(new_zi.shape)
 
 
 tsne = TSNE(random_state=42)
-# z = new_zi.view(-1, 128)
-z = new_zi.view(-1, 512)
+z = new_zi.view(-1, 128)
+# z = new_zi.view(-1, 512)
 predictions_embedded = tsne.fit_transform(z.cpu().detach().numpy())
 
 #Compute linear regression from 2D space
