@@ -1,0 +1,24 @@
+name: general
+channels:
+  - fastai
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10  # Changement crucial pour Mac M1/M2/M3
+  - pytorch      # On laisse Conda choisir la meilleure version pour Mac
+  - torchvision
+  - torchaudio
+  - fastai=2.7.13
+  - fastcore
+  - matplotlib
+  - numpy
+  - scikit-learn
+  - seaborn
+  - pip
+  - pip:
+    - torchmetrics
+    - imbalanced-learn
+    - numba
+    - pyts
+    - tsai
