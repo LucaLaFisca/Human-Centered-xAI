@@ -6,11 +6,12 @@ from tqdm.auto import tqdm
 
 def compute_fft_scores(image_paths, radius=30):
     """
-    Calcule le ratio d'énergie haute fréquence pour une liste d'images.
-    Retourne un dictionnaire { 'nom_image.jpg': score_hf }.
-    En cas d'erreur sur une image, assignation du score de l'image précédente.
+    Compute the energy ratio of high frequencies for a list of images.
+    Returns a list of scores.
+    In case of an error on an image, assigns the score of the previous image. (NEED TO BE MODIFIED TO BE MORE ROBUST)
     """
-    scores = {}
+
+    scores = []
     
     last_valid_score = 0.0 
     
@@ -46,20 +47,23 @@ def compute_fft_scores(image_paths, radius=30):
 
             # Evaluating the score (ratio of high frequency energy)
             hf_ratio = (hf_energy / total_energy).item() if total_energy > 0 else 0
-            scores[img_path.name] = hf_ratio
+            scores.append(hf_ratio)
             
             # Updating the last valid score
             last_valid_score = hf_ratio
             
         except Exception as e:
             # In case of error (e.g., read_image fails or shape is not 2D), assign the last valid score to the current image
-            print(f"Erreur sur {img_path.name}: {e} -> Assignation du score précédent : {last_valid_score:.4f}")
-            scores[img_path.name] = last_valid_score
+            print(f"Error for {img_path.name}: {e} -> Assigning previous score: {last_valid_score:.4f}")
+            scores.append(last_valid_score)
             
     return scores
 
 
 def find_otsu_threshold(im_gray):
+    """
+    WARNING : only works for 2 colors images to separate foreground and background.
+    """
     # 1. Calcul de l'histogramme normalisé (probabilités)
     hist = torch.histc(im_gray, bins=256, min=0, max=255)
     p = hist / hist.sum()
@@ -92,17 +96,3 @@ def find_otsu_threshold(im_gray):
 
     return seuil_optimal
 
-#def complexity_scores(pixels):
-    # Masque pour isoler le sujet (le fond est blanc, donc < T)
-    #pixels_sujet = im_gray[im_gray < T]
-
-    # --- Feature 1 : Variance du sujet ---
-    # Mesure l'étalement de la cloche "Sujet" dans l'histogramme
-    #score_variance = pixels_sujet.var().item()
-
-    # ---- ENTROPIE CALCUL ----
-    #if len(pixels) == 0: return 0
-    # On refait un mini-histogramme du sujet uniquement
-    #h = torch.histc(pixels, bins=256, min=0, max=255)
-    #p = h[h > 0] / h.sum() # On évite les log(0)
-    #return -torch.sum(p * torch.log2(p)).item()
