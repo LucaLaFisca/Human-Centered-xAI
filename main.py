@@ -106,14 +106,11 @@ torch.save(new_zi,'z_aae.pt') # sauvegarde de l'espace latent
 print(new_zi.shape)
 #Création de la partie avec lab_gather et category qui sont manquant
 
-# ✅ Récupérer les labels depuis les deux datasets (train + valid)
-train_labels = torch.cat([y for _, y in dls.train], dim=0)
-valid_labels = torch.cat([y for _, y in dls.valid], dim=0)
+# ✅ APRÈS — collecte labels alignés sur get_preds
+_, _, train_labels = learn.get_preds(ds_idx=0, with_input=True, act=noop)
+_, _, valid_labels = learn.get_preds(ds_idx=1, with_input=True, act=noop)
 lab_gather = torch.cat([train_labels, valid_labels], dim=0)
-
-# Si multi-label one-hot → prendre l'index de la première classe active
-# (0 = cat, 1 = dog) pour obtenir un scalaire par image
-lab_gather = lab_gather[:, 1].float().cpu()  # 0.0 = cat, 1.0 = dog
+lab_gather = lab_gather[:, 1].float().cpu()  # 0.0=cat, 1.0=dog
 
 # ✅ Même chose pour 'category' utilisé dans sns.scatterplot
 category = ['dog' if l == 1 else 'cat' for l in lab_gather.cpu().numpy()]
