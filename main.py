@@ -22,7 +22,7 @@ dblock = DataBlock(
     get_items=get_image_files,
     splitter=RandomSplitter(valid_pct=0.2, seed=42),
     get_y=label_func,
-    item_tfms=Resize(128),
+    item_tfms=Resize(128), # Contrainte sur la taille : puissance de 2 pour ne pas avoir de problème avec les dimensions dans l'autoencodeur (Optimal pour le décodeur)
     batch_tfms=[Normalize.from_stats(*imagenet_stats)],
 )
 
