@@ -103,8 +103,8 @@ class AAE(nn.Module):
         """Sequentially pass `x` trough model`s encoder, decoder and heads"""
         self.input_image = x
 
-        features = self.encoder(x)
-        self.zi = F.relu(self.bn_lin(self.encoder_fc(
+        features = self.encoder(x) # modifier relu en leaky_relu
+        self.zi = F.leaky_relu(self.bn_lin(self.encoder_fc(
                     features.view(
                         -1, features.size(1) * features.size(2) * features.size(3)
                     )
