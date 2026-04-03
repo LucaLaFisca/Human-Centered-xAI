@@ -1,146 +1,187 @@
 import torch
-from fastai.vision.all import *
-from fastai.data.all import *
-
-from model import AAE
-from utils import UnfreezeFcCritAdaptative, label_func, FreezeDiscriminator, GetLatentSpace, LossAttrMetric, distrib_regul_regression, compute_main_direction
-
-from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
 import seaborn as sns
+from sklearn.manifold import TSNE
+from fastai.vision.all import *
 
+from model import AAE, get_device
+from utils  import (
+    AAETrainingCallback,
+    AAELoss,
+    InjectDiscParams,
+    ExtractLatent,
+    distrib_regul_regression,
+    compute_main_direction,
+)
 
+# ---------------------------------------------------------------------------
+# 0. Device
+# ---------------------------------------------------------------------------
 
-### Define the Dataloader
-data_path = untar_data(URLs.PETS) #checker les autres databases dispo
-print(data_path.ls())
+device = get_device()
+print(f"Using device: {device}")
 
-catblock = MultiCategoryBlock(encoded=True, vocab=['cat', 'dog'])
+# ---------------------------------------------------------------------------
+# 1. DataLoaders
+# ---------------------------------------------------------------------------
+
+path   = untar_data(URLs.PETS)
+images = path / "images"
+
+def label_func(fname):
+    """Cats have upper-case filenames, dogs lower-case."""
+    return "cat" if fname.name[0].isupper() else "dog"
+
 dblock = DataBlock(
-    blocks=(ImageBlock(), catblock),
-    get_items=get_image_files,
-    splitter=RandomSplitter(valid_pct=0.2, seed=42),
-    get_y=label_func,
-    item_tfms=Resize(128), # Contrainte sur la taille : puissance de 2 pour ne pas avoir de problème avec les dimensions dans l'autoencodeur (Optimal pour le décodeur)
-    batch_tfms=[Normalize.from_stats(*imagenet_stats)],
+    blocks      = (ImageBlock, CategoryBlock),
+    get_items   = get_image_files,
+    splitter    = RandomSplitter(valid_pct=0.2, seed=42),
+    get_y       = label_func,
+    item_tfms   = Resize(128),
+    batch_tfms  = [Normalize.from_stats(*imagenet_stats)],
 )
 
-# Créez un DataLoader
-dls = dblock.dataloaders(data_path/"images", bs=16, drop_last=True,num_workers=0)
+dls = dblock.dataloaders(images, bs=16, drop_last=True, num_workers=0)
+print(f"Classes: {dls.vocab}")   # ['cat', 'dog']
 
-# Define the model
+# ---------------------------------------------------------------------------
+# 2. Model
+# ---------------------------------------------------------------------------
+
 model = AAE(
-        input_size=128,
-        input_channels=3,
-        encoding_dims=128,
-        classes=2,
+    input_size     = 128,
+    input_channels = 3,
+    encoding_dims  = 128,
+    step_channels  = 16,
+    classes        = len(dls.vocab),    # 2
 )
 
-### Train Autoencoder ###
-metrics = [LossAttrMetric("recons_loss"), accuracy_multi]
-learn = Learner(dls, model, loss_func=model.ae_loss_func, metrics=metrics)
+# ---------------------------------------------------------------------------
+# 3. Learner factory
+# ---------------------------------------------------------------------------
 
-model_file = 'cat_dog_ae_test'
-learning_rate = learn.lr_find()
-learn.fit(100, lr=learning_rate.valley,
-            cbs=[TrackerCallback(),
-                 SaveModelCallback(fname=model_file),
-                 EarlyStoppingCallback(min_delta=1e-4,patience=10)])
+def make_learner(mode: str, load_from: str = None) -> Learner:
+    """
+    Build a Learner for one training phase.
 
-state_dict = torch.load(f'models/{model_file}.pth')
-model.load_state_dict(state_dict, strict=False)
+    mode        Trains
+    --------    -----------------------------------------------
+    'ae'        Encoder + Decoder (reconstruction only)
+    'aae'       + Discriminator   (Gaussian prior matching)
+    'classif'   + Classifier      (full AAE + classification)
+    """
+    cbs = [
+        AAETrainingCallback(mode=mode, disc_steps=1, gen_steps=5),
+        InjectDiscParams(),            # needed by AAELoss to detect phase
+    ]
 
+    learn = Learner(
+        dls,
+        model,
+        loss_func = AAELoss(mode=mode),
+        metrics   = [accuracy],
+        cbs       = cbs,
+    )
 
-### Train Adversarial ###
-metrics = [LossAttrMetric("adv_loss"), LossAttrMetric("recons_loss"), LossAttrMetric("crit_loss"),
-           accuracy_multi]
-learn = Learner(dls, model, loss_func=model.aae_loss_func, metrics=metrics)
+    if load_from is not None:
+        learn.load(load_from, strict=False)
+        print(f"  Loaded weights from '{load_from}'")
 
-model_file = 'cat_dog_aae_test'
-learn.fit(100, lr=5e-3,
-            cbs=[GradientAccumulation(n_acc=16*4),
-                 TrackerCallback(),
-                 SaveModelCallback(fname=model_file),
-                 EarlyStoppingCallback(min_delta=1e-4,patience=10),
-               #   FreezeDiscriminator()]),
-                 UnfreezeFcCritAdaptative()])
+    return learn
 
-state_dict = torch.load(f'models/{model_file}.pth')
-model.load_state_dict(state_dict, strict=False)
+# ---------------------------------------------------------------------------
+# 4. Phase 1 — Autoencoder (reconstruction baseline)
+# ---------------------------------------------------------------------------
 
+print("\n── Phase 1 : Autoencoder ──────────────────────────────────────────")
+learn = make_learner(mode="ae")
+learn.fit_one_cycle(
+    20,
+    lr_max    = 1e-3,
+    cbs       = [
+        SaveModelCallback(fname="phase1_ae"),
+        EarlyStoppingCallback(patience=5, min_delta=1e-4),
+    ],
+)
+learn.save("phase1_ae")
 
-### Train Classifier ###
-metrics = [LossAttrMetric("adv_loss"), LossAttrMetric("recons_loss"),
-           LossAttrMetric("classif_loss"), LossAttrMetric("crit_loss"),
-           accuracy_multi]
-monitor_loss = 'valid_loss'
-learn = Learner(dls, model, loss_func=model.classif_loss_func, metrics=metrics)
+# ---------------------------------------------------------------------------
+# 5. Phase 2 — Adversarial training (Gaussian prior)
+# ---------------------------------------------------------------------------
 
-model_file = 'cat_dog_aae_classif_test'
-learn.fit(100, lr=1e-2,
-            cbs=[GradientAccumulation(n_acc=16*4),
-                 TrackerCallback(monitor=monitor_loss),
-                 SaveModelCallback(fname=model_file,monitor=monitor_loss),
-                 EarlyStoppingCallback(min_delta=1e-4,patience=10,monitor=monitor_loss),
-               #   FreezeDiscriminator()])
-                 UnfreezeFcCritAdaptative()])
+print("\n── Phase 2 : AAE (adversarial) ────────────────────────────────────")
+learn = make_learner(mode="aae", load_from="phase1_ae")
+learn.fit_one_cycle(
+    30,
+    lr_max    = 5e-4,
+    cbs       = [
+        SaveModelCallback(fname="phase2_aae"),
+        EarlyStoppingCallback(patience=5, min_delta=1e-4),
+    ],
+)
+learn.save("phase2_aae")
 
+# ---------------------------------------------------------------------------
+# 6. Phase 3 — Classifier fine-tuning
+# ---------------------------------------------------------------------------
 
-### Display the latent space ###
-#learn.load(f'models/{model_file}', strict=False)
-learn.load(model_file, strict=False)
-# compute and display the latent space
-dev = f'cuda:{torch.cuda.current_device()}'
-learn.zi_valid = torch.tensor([]).to(dev)
+print("\n── Phase 3 : Classifier ───────────────────────────────────────────")
+learn = make_learner(mode="classif", load_from="phase2_aae")
+learn.fit_one_cycle(
+    20,
+    lr_max    = 1e-3,
+    cbs       = [
+        SaveModelCallback(fname="phase3_classif"),
+        EarlyStoppingCallback(patience=5, min_delta=1e-4),
+    ],
+)
+learn.save("phase3_classif")
 
-learn.get_preds(ds_idx=0,cbs=[GetLatentSpace()])
-new_zi = learn.zi_valid
-learn.zi_valid = torch.tensor([]).to(dev)
-learn.get_preds(ds_idx=1,cbs=[GetLatentSpace()])
-new_zi = torch.vstack((new_zi,learn.zi_valid))
-torch.save(new_zi,'z_aae.pt') # sauvegarde de l'espace latent 
-print(new_zi.shape)
-#Création de la partie avec lab_gather et category qui sont manquant
+# ---------------------------------------------------------------------------
+# 7. Latent space visualisation
+# ---------------------------------------------------------------------------
 
-# ✅ Récupérer les labels depuis les deux datasets (train + valid)
-train_labels = torch.cat([y for _, y in dls.train], dim=0)
-valid_labels = torch.cat([y for _, y in dls.valid], dim=0)
-lab_gather = torch.cat([train_labels, valid_labels], dim=0)
+print("\n── Extracting latent space ────────────────────────────────────────")
+learn = make_learner(mode="classif", load_from="phase3_classif")
 
-# Si multi-label one-hot → prendre l'index de la première classe active
-# (0 = cat, 1 = dog) pour obtenir un scalaire par image
-lab_gather = lab_gather[:, 1].float()  # 0.0 = cat, 1.0 = dog
+extract_cb = ExtractLatent()
+learn.get_preds(cbs=[extract_cb])
 
-# ✅ Même chose pour 'category' utilisé dans sns.scatterplot
-category = ['dog' if l == 1 else 'cat' for l in lab_gather.cpu().numpy()]
+zi      = learn.latent_z.numpy()          # (N, 128)
+targets = learn.latent_targs.numpy()      # (N,)   — integer class indices
+labels  = [dls.vocab[t] for t in targets]
 
-tsne = TSNE(random_state=42)
-z = new_zi.view(-1, 128)
-# z = new_zi.view(-1, 512) # j'ai changé la valeur à 128.
-predictions_embedded = tsne.fit_transform(z.cpu().detach().numpy())
+print(f"Latent shape : {zi.shape}")
 
-#Compute linear regression from 2D space
-y_pred_embed = distrib_regul_regression(predictions_embedded, lab_gather)
+# t-SNE projection
+tsne       = TSNE(n_components=2, random_state=42, perplexity=30)
+z_embedded = tsne.fit_transform(zi)       # (N, 2)
 
-diverging_norm = mcolors.TwoSlopeNorm(vmin=lab_gather.min(),vcenter=0.5,vmax=lab_gather.max())
-mapper = plt.cm.ScalarMappable(norm=diverging_norm)#, cmap='YlOrBr_r')
-colors = mapper.to_rgba(lab_gather.numpy())
+# Plot
+fig, ax = plt.subplots(figsize=(10, 8))
+sns.scatterplot(
+    x     = z_embedded[:, 0],
+    y     = z_embedded[:, 1],
+    hue   = labels,
+    s     = 55,
+    ax    = ax,
+)
 
-fig, ax = plt.subplots()
-sns.scatterplot(x=predictions_embedded[:,0], y=predictions_embedded[:,1], hue=category, s=55)
-# Plot the line along the first principal component
-start, end = compute_main_direction(predictions_embedded, y_pred_embed)
-ax.arrow(start[0], start[1], end[0]-start[0], end[1]-start[1], linewidth=3,
-          head_width=10, head_length=10, fc='#8B0000', ec='#8B0000', length_includes_head=True)
+# Directional arrow (class 0 → class 1 in 2-D)
+try:
+    start, end = compute_main_direction(z_embedded, targets)
+    ax.annotate(
+        "",
+        xy     = end,
+        xytext = start,
+        arrowprops = dict(arrowstyle="->", color="#8B0000", lw=2.5),
+    )
+except Exception as e:
+    print(f"Could not draw direction arrow: {e}")
 
-# Define x,y limits
-maxabs = np.max(np.abs(predictions_embedded)) + 5
-plt.xlim([-maxabs, maxabs])
-plt.ylim([-maxabs, maxabs])
-
-# Remove xticks and yticks
-ax.set_xticks([])
-ax.set_yticks([])
-# Remove the legend
-ax.get_legend().remove()
+ax.set_title("Latent space — AAE (t-SNE)")
+ax.set_xticks([]); ax.set_yticks([])
+ax.get_legend().set_title("")
+plt.tight_layout()
+plt.savefig("latent_space.png", dpi=150)
+plt.show()
