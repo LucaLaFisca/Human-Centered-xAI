@@ -33,7 +33,7 @@ class AAE(nn.Module):
         self.linear = nn.Linear(encoding_dims, self.classes, bias=True) #8 classes
         self.bn_lin = nn.BatchNorm1d(num_features=encoding_dims)
 
-        self.fc_crit1 = nn.Linear(encoding_dims*2, 64)
+        self.fc_crit1 = nn.Linear(encoding_dims, 64)
         self.fc_crit2 = nn.Linear(64, 16)
         self.fc_crit3 = nn.Linear(16, 1)
 
@@ -80,23 +80,10 @@ class AAE(nn.Module):
 
 
     def latent_gan(self, zi: Tensor) -> Tensor:
-        mu = torch.mean(zi,dim=0).unsqueeze(0)
-        std = torch.std(zi,dim=0).unsqueeze(0)
-        # print(f'std shape: {std.shape}')
-        stat = torch.hstack((mu,std))
-        # print(f'stat shape: {stat.shape}')
-        x = self.fc_crit1(stat)
-        # print(x.grad)
-        # x = F.leaky_relu(self.bn_crit1(x),negative_slope=0.2)
-        x = F.leaky_relu(x,negative_slope=0.2)
-        x = self.fc_crit2(x)
-        # print(x.grad)
-        # x = F.leaky_relu(self.bn_crit2(x),negative_slope=0.2)
-        x = F.leaky_relu(x,negative_slope=0.2)
-        x = self.fc_crit3(x)
-        # print(x.grad)
-        x = F.sigmoid(x)
-        # print(x.grad)
+         # zi shape : (batch_size, 128) — échantillons individuels
+        x = F.leaky_relu(self.bn_crit1(self.fc_crit1(zi)), negative_slope=0.2)
+        x = F.leaky_relu(self.bn_crit2(self.fc_crit2(x)),  negative_slope=0.2)
+        x = torch.sigmoid(self.fc_crit3(x))  # (batch_size, 1)
         return x
 
     def forward(self, x):
