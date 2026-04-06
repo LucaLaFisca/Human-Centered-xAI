@@ -93,60 +93,60 @@ learn.load(model_file, strict=False)
 torch.save(model.state_dict(), 'models/cat_dog_aae_classif_final.pth')
 print("PTH sauvegardé : models/cat_dog_aae_classif_final.pth")
 
-# compute and display the latent space
+# ── Extraire Ze ──────────────────────────────────────────────────────
 dev = f'cuda:{torch.cuda.current_device()}'
 learn.zi_valid = torch.tensor([]).to(dev)
+learn.get_preds(ds_idx=0, cbs=[GetLatentSpace()])
+new_zi = learn.zi_valid.clone()
 
-learn.get_preds(ds_idx=0,cbs=[GetLatentSpace()]) #input,pred,label = learn.get_preds et rajout with_input=true a rajouter
-new_zi = learn.zi_valid
 learn.zi_valid = torch.tensor([]).to(dev)
-learn.get_preds(ds_idx=1,cbs=[GetLatentSpace()])
-new_zi = torch.vstack((new_zi,learn.zi_valid))
-torch.save(new_zi,'z_aae.pt') # sauvegarde de l'espace latent 
-print(new_zi.shape)
-#Création de la partie avec lab_gather et category qui sont manquant
+learn.get_preds(ds_idx=1, cbs=[GetLatentSpace()])
+new_zi = torch.vstack((new_zi, learn.zi_valid))
 
-# ✅ APRÈS — collecte labels alignés sur get_preds
-_, _, train_labels = learn.get_preds(ds_idx=0, with_input=True, act=noop)
-_, _, valid_labels = learn.get_preds(ds_idx=1, with_input=True, act=noop)
-lab_gather = torch.cat([train_labels, valid_labels], dim=0)
-lab_gather = lab_gather[:, 1].float().cpu()  # 0.0=cat, 1.0=dog
+torch.save(new_zi, 'z_aae.pt')
+print(f"Ze shape : {new_zi.shape}")
 
-# ✅ Même chose pour 'category' utilisé dans sns.scatterplot
-category = ['dog' if l == 1 else 'cat' for l in lab_gather.cpu().numpy()]
+# ── Labels depuis le DataLoader (alignés sur new_zi via drop_last) ───
+train_labels = torch.cat([y for _, y in dls.train], dim=0)
+valid_labels = torch.cat([y for _, y in dls.valid], dim=0)
+lab_gather   = torch.cat([train_labels, valid_labels], dim=0)
 
+N_min      = min(len(lab_gather), len(new_zi))
+lab_gather = lab_gather[:N_min, 1].float().cpu()  # 0.0=cat, 1.0=dog
+category   = ['dog' if l == 1 else 'cat' for l in lab_gather.numpy()]
+
+# ── t-SNE sur Ze aligné ──────────────────────────────────────────────
 tsne = TSNE(random_state=42)
-z = new_zi.view(-1, 128)
-# z = new_zi.view(-1, 512) # j'ai changé la valeur à 128.
+z    = new_zi[:N_min].view(-1, 128)
 predictions_embedded = tsne.fit_transform(z.cpu().detach().numpy())
 
-#Compute linear regression from 2D space
-y_pred_embed = distrib_regul_regression(predictions_embedded, lab_gather)# remplace lab_gather par labels
-# partie supprimable ( sert seulement au couleur du graphe)
-diverging_norm = mcolors.TwoSlopeNorm(vmin=lab_gather.min(),vcenter=0.5,vmax=lab_gather.max())
-mapper = plt.cm.ScalarMappable(norm=diverging_norm)#, cmap='YlOrBr_r')
+# ── Régression + figure ──────────────────────────────────────────────
+y_pred_embed  = distrib_regul_regression(predictions_embedded, lab_gather)
+diverging_norm = mcolors.TwoSlopeNorm(
+    vmin=lab_gather.min(), vcenter=0.5, vmax=lab_gather.max()
+)
+mapper = plt.cm.ScalarMappable(norm=diverging_norm)
 colors = mapper.to_rgba(lab_gather.numpy())
 
 fig, ax = plt.subplots()
-sns.scatterplot(x=predictions_embedded[:,0], y=predictions_embedded[:,1], hue=category, s=55) #remplace category par labels (vérifier le format check ligne 116)
-# Plot the line along the first principal component
+sns.scatterplot(
+    x=predictions_embedded[:, 0], y=predictions_embedded[:, 1],
+    hue=category, s=55
+)
 start, end = compute_main_direction(predictions_embedded, y_pred_embed)
-ax.arrow(start[0], start[1], end[0]-start[0], end[1]-start[1], linewidth=3,
-          head_width=10, head_length=10, fc='#8B0000', ec='#8B0000', length_includes_head=True)
+ax.arrow(
+    start[0], start[1], end[0]-start[0], end[1]-start[1],
+    linewidth=3, head_width=10, head_length=10,
+    fc='#8B0000', ec='#8B0000', length_includes_head=True
+)
 
-# Define x,y limits
 maxabs = np.max(np.abs(predictions_embedded)) + 5
 plt.xlim([-maxabs, maxabs])
 plt.ylim([-maxabs, maxabs])
-
-# Remove xticks and yticks
 ax.set_xticks([])
 ax.set_yticks([])
-# Remove the legend
 ax.get_legend().remove()
 
-#Sauvegarde du plot réalisé
-
-plt.savefig('latent_space_tsne.png', dpi=150, bbox_inches='tight') #dpi =150 permet d'avoir un compromis taille et qualité du fichier
+plt.savefig('latent_space_tsne.png', dpi=150, bbox_inches='tight')
 plt.close()
 print("Figure sauvegardée : latent_space_tsne.png")
