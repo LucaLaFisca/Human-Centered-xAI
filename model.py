@@ -1,132 +1,83 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from fastai.vision.all import *
+from fastai.data.all import *
 
 # dev = 'cuda:3'
 # torch.cuda.set_device(dev)
 dev = torch.cuda.current_device()
 
-# ---------------------------------------------------------------------------
-# Device selection
-# ---------------------------------------------------------------------------
-
-def get_device():
-    if torch.cuda.is_available():
-        return torch.device("cuda")
-    elif torch.backends.mps.is_available():
-        return torch.device("mps")
-    return torch.device("cpu")
-
-
-# ---------------------------------------------------------------------------
-# Building blocks
-# ---------------------------------------------------------------------------
-
-def encoder_block(in_ch, out_ch):
-    """Conv2d  + BN + LeakyReLU — one downsampling step (stride 4)."""
-    return nn.Sequential(
-        nn.Conv2d(in_ch, out_ch, kernel_size=5, stride=4, padding=2),
-        nn.BatchNorm2d(out_ch),
-        nn.LeakyReLU(0.2, inplace=True),
-    )
-
-
-def decoder_block(in_ch, out_ch):
-    """ConvTranspose2d + BN + LeakyReLU — one upsampling step (stride 4)."""
-    return nn.Sequential(
-        nn.ConvTranspose2d(in_ch, out_ch, kernel_size=5, stride=4, padding=2, output_padding=3),
-        nn.BatchNorm2d(out_ch),
-        nn.LeakyReLU(0.2, inplace=True),
-    )
-
-
-def discriminator_block(in_dim, out_dim):
-    """Linear + LeakyReLU — one step of the MLP discriminator."""
-    return nn.Sequential(
-        nn.Linear(in_dim, out_dim),
-        nn.LeakyReLU(0.2, inplace=True),
-    )
-
-
-# ---------------------------------------------------------------------------
-# Main model
-# ---------------------------------------------------------------------------
 
 class AAE(nn.Module):
-    """
-    Adversarial Autoencoder (Makhzani et al., 2015).
-
-    Architecture
-    ------------
-    Encoder  : CNN  →  latent z  (NO activation on z — keeps it Gaussian-friendly)
-    Decoder  : latent z  →  CNN  →  reconstruction
-    Discriminator : sample-wise MLP on z  →  real/fake score
-    Classifier    : linear head on z  →  class logits
-
-    The discriminator operates on INDIVIDUAL latent vectors (not batch statistics),
-    which is the correct way to match a Gaussian prior point-by-point.
-    """
-
     def __init__(
         self,
-        input_size: int = 128,
-        input_channels: int = 3,
-        encoding_dims: int = 128,
-        step_channels: int = 16,
-        classes: int = 2,
+        input_size,
+        input_channels,
+        encoding_dims=128,
+        step_channels=16,
+        nonlinearity=nn.LeakyReLU(0.2),
+        classes=2,
+        gen_train=True
     ):
-        super().__init__()
+        super(AAE, self).__init__()
 
-        self.encoding_dims = encoding_dims
+        self.gen_train = gen_train
+        self.count_acc = 1
         self.classes = classes
 
-        # ── Encoder ────────────────────────────────────────────────────────
-        # First block: no BN on the very first conv (common practice)
-        first_enc = nn.Sequential(
-            nn.Conv2d(input_channels, step_channels, kernel_size=5, stride=2, padding=2),
-            nn.LeakyReLU(0.2, inplace=True),
-        )
+        self.pool = nn.AdaptiveAvgPool2d(1)
+        self.flatten = nn.Flatten()
+        self.dropout = nn.Dropout(p=0.2)#, inplace=True)
+        # self.linear = nn.Linear(self.encoder.out_channels[-1], 2, bias=True) #2 classes
+        self.linear = nn.Linear(encoding_dims, self.classes, bias=True) #8 classes
+        self.bn_lin = nn.BatchNorm1d(num_features=encoding_dims)
 
         self.fc_crit1 = nn.Linear(encoding_dims, 64)
         self.fc_crit2 = nn.Linear(64, 16)
         self.fc_crit3 = nn.Linear(16, 1)
 
-        while curr_size > 1:
-            enc_blocks.append(encoder_block(curr_channels, curr_channels * 4))
-            curr_channels *= 4
-            curr_size = curr_size // 4
+        self.bn_crit1 = nn.BatchNorm1d(num_features=64)
+        self.bn_crit2 = nn.BatchNorm1d(num_features=16)
 
-        self.encoder = nn.Sequential(*enc_blocks)
-
-        # Projection to latent space — NO activation so z is unconstrained
-        self.encoder_fc = nn.Sequential(
-            nn.Linear(curr_channels, encoding_dims),
-            # BatchNorm helps stabilise scale but must come BEFORE any activation.
-            # We leave z raw (linear) so the adversarial prior can shape it freely.
-            nn.BatchNorm1d(encoding_dims),
-        )
-
-        # ── Decoder ────────────────────────────────────────────────────────
-        self.decoder_fc = nn.Linear(encoding_dims, step_channels)
-
-        dec_blocks = []
-        curr_size = 1
-        curr_channels = step_channels
-
-        while curr_size < input_size // 2:
-            dec_blocks.append(decoder_block(curr_channels, curr_channels * 4))
-            curr_channels *= 4
-            curr_size *= 4
-
-        # Last layer: no BN, Tanh to match normalised image range [-1, 1]
-        dec_blocks.append(
+        encoder = [
             nn.Sequential(
-                nn.ConvTranspose2d(curr_channels, input_channels, kernel_size=5, stride=2, padding=2, output_padding=1),
-                nn.Tanh(),
+                nn.Conv2d(input_channels, step_channels, 5, 2, 2), nonlinearity
             )
-        )
+        ]
+        size = input_size // 2
+        channels = step_channels
+        while size > 1:
+            encoder.append(
+                nn.Sequential(
+                    nn.Conv2d(channels, channels * 4, 5, 4, 2),
+                    nn.BatchNorm2d(channels * 4),
+                    nonlinearity,
+                )
+            )
+            channels *= 4
+            size = size // 4
+        self.encoder = nn.Sequential(*encoder)
+        self.encoder_fc = nn.Linear(
+            channels, encoding_dims
+        )  # Can add a Tanh nonlinearity if training is unstable as noise prior is Gaussian
+        self.decoder_fc = nn.Linear(encoding_dims, step_channels)
+        decoder = []
+        size = 1
+        channels = step_channels
+        while size < input_size // 2:
+            decoder.append(
+                nn.Sequential(
+                    nn.ConvTranspose2d(channels, channels * 4, 5, 4, 2, 3),
+                    nn.BatchNorm2d(channels * 4),
+                    nonlinearity,
+                )
+            )
+            channels *= 4
+            size *= 4
+        decoder.append(nn.ConvTranspose2d(channels, input_channels, 5, 2, 2, 1))
+        self.decoder = nn.Sequential(*decoder)
 
-        self.decoder = nn.Sequential(*dec_blocks)
 
     def latent_gan(self, zi: Tensor) -> Tensor:
          # zi shape : (batch_size, 128) — échantillons individuels
@@ -146,23 +97,108 @@ class AAE(nn.Module):
                     )
                 )))
 
-        # 2. Decode
-        dec_in        = self.decoder_fc(z).view(-1, self.decoder_fc.out_features, 1, 1)
-        reconstruction = self.decoder(dec_in)
+        x = self.decoder_fc(self.zi)
+        self.decoder_output = self.decoder(x.view(-1, x.size(1), 1, 1))
 
-        # 3. Discriminate  — sample-wise, not aggregate
-        disc_fake  = self.discriminator(z)                    # [B, 1]
-        z_prior    = torch.randn_like(z)
-        disc_real  = self.discriminator(z_prior)              # [B, 1]
+        self.gan_fake = self.latent_gan(self.zi)
+        z = torch.randn_like(self.zi)
+        self.gan_real = self.latent_gan(z)
 
-        # 4. Classify
-        logits = self.classifier(z)                           # [B, classes]
+        # x = self.dropout(self.zi)
+        labels = self.linear(self.zi)
+        # labels = F.softmax(x)
 
-        return {
-            "input":          x,
-            "reconstruction": reconstruction,
-            "z":              z,
-            "disc_fake":      disc_fake,
-            "disc_real":      disc_real,
-            "logits":         logits,
-        }
+        return labels
+
+    def ae_loss_func(self, output, target):
+        delta = .5
+        huber = nn.HuberLoss(delta=delta)
+
+        self.recons_loss = huber(self.input_image, self.decoder_output)
+
+        bce = nn.BCEWithLogitsLoss()
+        classif_loss = bce(output, target)
+            
+        return self.recons_loss + .001*classif_loss
+
+    def classif_loss_func(self, output, target):
+        delta = .5
+        huber = nn.HuberLoss(delta=delta)
+
+        self.recons_loss = huber(self.input_image, self.decoder_output)
+
+        bce = nn.BCEWithLogitsLoss()
+        self.classif_loss = bce(output, target)
+
+        # self.kld_loss = -0.5 * torch.sum(1 + self.log_var - self.mu ** 2 - self.log_var.exp())
+        adversarial_loss = nn.BCELoss()
+        if self.gen_train: #generator loss
+            # Measures generator's ability to fool the discriminator
+            valid = torch.ones_like(self.gan_fake, requires_grad=False).detach()
+            self.adv_loss = adversarial_loss(self.gan_fake, valid)
+            self.crit_loss = 0
+        else: #discriminator loss
+            # Measure discriminator's ability to classify real from generated samples
+            valid = torch.ones_like(self.gan_real, requires_grad=False).detach()
+            fake = torch.zeros_like(self.gan_fake, requires_grad=False).detach()
+            self.real_loss = adversarial_loss(self.gan_real, valid)
+            self.fake_loss = adversarial_loss(self.gan_fake, fake)
+            self.adv_loss = 0.6 * self.real_loss + 0.4 * self.fake_loss
+            self.crit_loss = self.adv_loss
+            return self.adv_loss
+
+
+        loss = 0.01*self.recons_loss + 0.24*self.adv_loss + 0.75*self.classif_loss
+
+        if self.count_acc % 16 == 0:
+            self.gen_train = False
+        else:
+            self.gen_train = True
+        self.count_acc += 1
+            
+        return loss
+
+
+    def aae_loss_func(self, output, target):
+        adversarial_loss = nn.BCELoss()
+        delta = .5
+        huber = nn.HuberLoss(delta=delta)
+
+        self.recons_loss = huber(self.input_image, self.decoder_output)
+
+        # self.kld_loss = -0.5 * torch.sum(1 + self.log_var - self.mu ** 2 - self.log_var.exp())
+    
+        if self.gen_train: #generator loss
+            # Measures generator's ability to fool the discriminator
+            valid = torch.ones_like(self.gan_fake, requires_grad=False).detach()
+            self.adv_loss = adversarial_loss(self.gan_fake, valid)
+            self.crit_loss = 0
+            # self.classif_loss = self.classif_loss_func(self.pred, classif_target)
+            # loss = 0.1 * self.adv_loss + 0.9 * self.recons_loss + self.classif_loss
+        else: #discriminator loss
+            # Measure discriminator's ability to classify real from generated samples
+            valid = torch.ones_like(self.gan_real, requires_grad=False).detach()
+            fake = torch.zeros_like(self.gan_fake, requires_grad=False).detach()
+            self.real_loss = adversarial_loss(self.gan_real, valid)
+            self.fake_loss = adversarial_loss(self.gan_fake, fake)
+            self.adv_loss = 0.6 * self.real_loss + 0.4 * self.fake_loss
+            self.crit_loss = self.adv_loss
+
+        # ce = nn.CrossEntropyLoss()
+        # self.classif_loss = ce(output, target)
+        bce = nn.BCEWithLogitsLoss()
+        self.classif_loss = bce(output, target)
+
+        # loss = self.adv_loss + .1*self.recons_loss + .4*self.classif_loss
+        loss = self.adv_loss + .1*self.recons_loss + .001*self.classif_loss
+
+        # print(f'Losses: {loss.shape, self.kld_loss.shape, self.recons_loss.shape, self.classif_loss.shape}')
+            
+        if self.count_acc % 2 == 0:
+            self.gen_train = False
+        else:
+            self.gen_train = True
+        self.count_acc += 1
+        # print(f'count_acc: {self.count_acc, self.gen_train}')
+            
+        return loss

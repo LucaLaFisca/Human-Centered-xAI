@@ -1,7 +1,7 @@
 import torch
-import torch.nn as nn
-import numpy as np
+from fastai.data.all import *
 from fastai.vision.all import *
+
 from sklearn.linear_model import LinearRegression
 from collections import Counter
 from scipy.ndimage import convolve1d, gaussian_filter1d
@@ -15,323 +15,245 @@ class UnfreezeFcCritAdaptative(Callback):
         self.valid_loss_history = []  
         self.gen_train_epochs = 0  
 
-# ---------------------------------------------------------------------------
-# 1. Training Callback
-# ---------------------------------------------------------------------------
+    def before_epoch(self):
+        # Get last valid_loss
+        current_valid_loss = self.learn.recorder.values[-1][1] if self.learn.recorder.values else float('inf')
+        self.valid_loss_history.append(current_valid_loss)
 
-class AAETrainingCallback(Callback):
-    """
-    Alternates gradient flow between Generator and Discriminator phases.
-
-    Phase logic (per batch)
-    -----------------------
-    • Every `disc_steps` batches  → Discriminator phase
-      - Only discriminator weights receive gradients
-    • Otherwise                   → Generator phase
-      - Encoder + Decoder + Classifier receive gradients
-      - Discriminator is frozen
-
-    The mode parameter controls which components are active at all:
-      'ae'      → encoder + decoder only (no adversarial, no classifier)
-      'aae'     → encoder + decoder + discriminator (no classifier)
-      'classif' → all components
-    """
-
-    def __init__(self, mode: str = "ae", disc_steps: int = 1, gen_steps: int = 5):
-        assert mode in ("ae", "aae", "classif"), f"Unknown mode: {mode}"
-        self.mode       = mode
-        self.disc_steps = disc_steps   # number of disc updates per cycle
-        self.gen_steps  = gen_steps    # number of gen  updates per cycle
-        self.step       = 0
-        self.is_gen_phase = True       # start with generator
-
-    # ── Phase management ────────────────────────────────────────────────────
-
-    @property
-    def cycle_length(self):
-        return self.disc_steps + self.gen_steps
-
-    def _update_phase(self):
-        pos = self.step % self.cycle_length
-        self.is_gen_phase = pos < self.gen_steps
-
-    # ── Gradient routing ────────────────────────────────────────────────────
-
-    def _set_requires_grad(self, module, flag: bool):
-        for p in module.parameters():
-            p.requires_grad_(flag)
-
-    def _apply_gradients(self):
-        model = self.learn.model
-
-        if self.mode == "ae":
-            # Autoencoder only: train encoder + decoder, nothing else
-            self._set_requires_grad(model.encoder,        True)
-            self._set_requires_grad(model.encoder_fc,     True)
-            self._set_requires_grad(model.decoder_fc,     True)
-            self._set_requires_grad(model.decoder,        True)
-            self._set_requires_grad(model.discriminator,  False)
-            self._set_requires_grad(model.classifier,     False)
-
-        elif self.mode == "aae":
-            if self.is_gen_phase:
-                # Generator phase: encoder + decoder learn to fool discriminator
-                self._set_requires_grad(model.encoder,       True)
-                self._set_requires_grad(model.encoder_fc,    True)
-                self._set_requires_grad(model.decoder_fc,    True)
-                self._set_requires_grad(model.decoder,       True)
-                self._set_requires_grad(model.discriminator, False)
-                self._set_requires_grad(model.classifier,    False)
-            else:
-                # Discriminator phase: only discriminator learns
-                self._set_requires_grad(model.encoder,       False)
-                self._set_requires_grad(model.encoder_fc,    False)
-                self._set_requires_grad(model.decoder_fc,    False)
-                self._set_requires_grad(model.decoder,       False)
-                self._set_requires_grad(model.discriminator, True)
-                self._set_requires_grad(model.classifier,    False)
-
-        elif self.mode == "classif":
-            if self.is_gen_phase:
-                # Generator + classifier phase
-                self._set_requires_grad(model.encoder,       True)
-                self._set_requires_grad(model.encoder_fc,    True)
-                self._set_requires_grad(model.decoder_fc,    True)
-                self._set_requires_grad(model.decoder,       True)
-                self._set_requires_grad(model.discriminator, False)
-                self._set_requires_grad(model.classifier,    True)
-            else:
-                # Discriminator phase only
-                self._set_requires_grad(model.encoder,       False)
-                self._set_requires_grad(model.encoder_fc,    False)
-                self._set_requires_grad(model.decoder_fc,    False)
-                self._set_requires_grad(model.decoder,       False)
-                self._set_requires_grad(model.discriminator, True)
-                self._set_requires_grad(model.classifier,    False)
-
-    # ── fastai hooks ────────────────────────────────────────────────────────
-
-    def before_batch(self):
-        self._update_phase()
-        self._apply_gradients()
-
-    def after_batch(self):
-        self.step += 1
-
-    def before_fit(self):
-        # Reset counter at the start of each Learner.fit call
-        self.step = 0
-        self.is_gen_phase = True
-
-
-# ---------------------------------------------------------------------------
-# 2. Loss Functions
-# ---------------------------------------------------------------------------
-
-class AAELoss:
-    """
-    Computes the correct loss depending on the current training phase.
-
-    The phase (generator vs discriminator) is read from the model's gradient
-    state so there is a single source of truth: AAETrainingCallback.
-
-    Loss breakdown
-    --------------
-    AE phase (mode='ae'):
-        total = recon_loss
-
-    Generator phase (mode='aae' or 'classif'):
-        adv_gen_loss  = BCE(disc_fake, 1)   ← encoder fools discriminator
-        total = recon_loss + λ_adv * adv_gen_loss  [+ λ_cls * class_loss]
-
-    Discriminator phase (mode='aae' or 'classif'):
-        adv_disc_loss = 0.5 * [BCE(disc_real, 1) + BCE(disc_fake, 0)]
-        total = adv_disc_loss
-        (reconstruction and classification are NOT in this loss to avoid
-         conflicting gradients — the encoder must NOT be updated here)
-    """
-
-    # Loss weights — adjust here, not scattered across the code
-    LAMBDA_RECON = 1.0
-    LAMBDA_ADV   = 0.5
-    LAMBDA_CLS   = 0.75
-
-    def __init__(self, mode: str = "ae"):
-        assert mode in ("ae", "aae", "classif"), f"Unknown mode: {mode}"
-        self.mode    = mode
-        self.huber   = nn.HuberLoss(delta=0.5)
-        self.bce     = nn.BCELoss()
-        self.ce      = nn.CrossEntropyLoss()
-
-    def _is_disc_phase(self, output: dict) -> bool:
-        """
-        Infer training phase from gradient state of the discriminator.
-        If any discriminator parameter requires grad → discriminator phase.
-        """
-        return any(p.requires_grad for p in output["_disc_params"])
-
-    def __call__(self, output: dict, target: torch.Tensor) -> torch.Tensor:
-        recon      = output["reconstruction"]
-        inp        = output["input"]
-        disc_fake  = output["disc_fake"]
-        disc_real  = output["disc_real"]
-        logits     = output["logits"]
-
-        # ── Autoencoder only ────────────────────────────────────────────────
-        if self.mode == "ae":
-            return self.LAMBDA_RECON * self.huber(recon, inp)
-
-        # ── Adversarial phases ──────────────────────────────────────────────
-        is_disc = self._is_disc_phase(output)
-
-        if is_disc:
-            # Discriminator phase: tell apart Gaussian prior from encoder output
-            real_loss = self.bce(disc_real, torch.ones_like(disc_real))
-            fake_loss = self.bce(disc_fake, torch.zeros_like(disc_fake))
-            return 0.5 * (real_loss + fake_loss)
-
+        if len(self.valid_loss_history) >= self.window_size:
+            avg_valid_loss = np.mean(self.valid_loss_history[-self.window_size:])
         else:
-            # Generator phase: fool discriminator + reconstruct
-            recon_loss   = self.huber(recon, inp)
-            adv_gen_loss = self.bce(disc_fake, torch.ones_like(disc_fake))
+            avg_valid_loss = current_valid_loss
 
-            if self.mode == "aae":
-                return (self.LAMBDA_RECON * recon_loss
-                        + self.LAMBDA_ADV * adv_gen_loss)
+        # Decide to train Generator or Discriminator
+        if self.epoch < 3:  
+            print("train discriminator (initial phase)")
+            self.learn.model.gen_train = False
+            for name, param in self.learn.model.named_parameters():
+                if "fc_crit" in name:
+                    param.requires_grad_(True)
+                else:
+                    param.requires_grad_(False)
+            self.gen_train_epochs = 0
+        else:
+            if avg_valid_loss < self.low_threshold:  # Generator is too strong
+                print("train discriminator (generator too strong, avg_valid_loss={:.4f})".format(avg_valid_loss))
+                self.learn.model.gen_train = False
+                for name, param in self.learn.model.named_parameters():
+                    if "fc_crit" in name:
+                        param.requires_grad_(True)
+                    else:
+                        param.requires_grad_(False)
+                self.gen_train_epochs = 0
+            elif avg_valid_loss > self.high_threshold:  # Discriminator is too strong
+                print("train generator (discriminator too strong, avg_valid_loss={:.4f})".format(avg_valid_loss))
+                self.learn.model.gen_train = True
+                for name, param in self.learn.model.named_parameters():
+                    if "fc_crit" in name:
+                        param.requires_grad_(False)
+                    else:
+                        param.requires_grad_(True)
+                self.gen_train_epochs += 1
+            else:
+                # Training both
+                if (self.epoch + 1) % self.switch_every == 0:
+                    print("train discriminator (periodic switch, avg_valid_loss={:.4f})".format(avg_valid_loss))
+                    self.learn.model.gen_train = False
+                    for name, param in self.learn.model.named_parameters():
+                        if "fc_crit" in name:
+                            param.requires_grad_(True)
+                            param.lr_mult = 1.0
+                        else:
+                            param.requires_grad_(True)  
+                            param.lr_mult = 0.1 
+                    self.gen_train_epochs = 0
+                else:
+                    print("train generator (periodic switch, avg_valid_loss={:.4f})".format(avg_valid_loss))
+                    self.learn.model.gen_train = True
+                    for name, param in self.learn.model.named_parameters():
+                        if "fc_crit" in name:
+                            param.requires_grad_(True)  
+                            param.lr_mult = 0.1  
+                        else:
+                            param.requires_grad_(True)
+                            param.lr_mult = 1.0 
+                    self.gen_train_epochs += 1
+        
+        # Limit the number of consecutive epoch while training Generator
+        if self.gen_train_epochs >= 3:
+            print("train discriminator (too many generator epochs, avg_valid_loss={:.4f})".format(avg_valid_loss))
+            self.learn.model.gen_train = False
+            for name, param in self.learn.model.named_parameters():
+                if "fc_crit" in name:
+                    param.requires_grad_(True)
+                    param.lr_mult = 1.0
+                else:
+                    param.requires_grad_(False)
+            self.gen_train_epochs = 0
+        
 
-            elif self.mode == "classif":
-                class_loss = self.ce(logits, target)
-                return (self.LAMBDA_RECON * recon_loss
-                        + self.LAMBDA_ADV   * adv_gen_loss
-                        + self.LAMBDA_CLS   * class_loss)
+class FreezeDiscriminator(Callback):
+    def before_batch(self):
+        if self.gen_train == 0:
+            for name, param in self.learn.model.named_parameters():
+                if "fc_crit" in name:
+                    param.requires_grad_(True)
+                else:
+                    param.requires_grad_(False)
+                    
+        else:
+            for name, param in self.learn.model.named_parameters():
+                if "fc_crit" in name:
+                    param.requires_grad_(False)
+                else:
+                    param.requires_grad_(True)
 
 
-# ---------------------------------------------------------------------------
-# 3. Forward hook — injects discriminator params into model output
-# ---------------------------------------------------------------------------
-
-class InjectDiscParams(Callback):
-    """
-    Injects a reference to discriminator parameters into the model output dict.
-    This lets AAELoss.is_disc_phase() read gradient state without coupling
-    the loss function to the Learner or Callback objects.
-    """
-    def after_pred(self):
-        if isinstance(self.learn.pred, dict):
-            self.learn.pred["_disc_params"] = list(
-                self.learn.model.discriminator.parameters()
-            )
-
-
-# ---------------------------------------------------------------------------
-# 4. Latent space extraction callback
-# ---------------------------------------------------------------------------
-
-class ExtractLatent(Callback):
-    """Collects latent vectors and targets during get_preds()."""
-
-    def before_validate(self):
-        self._zs    = []
-        self._targs = []
-
+class GetLatentSpace(Callback):
     def after_batch(self):
         if not self.training:
-            self._zs.append(self.learn.pred["z"].detach().cpu())
-            self._targs.append(self.learn.y.detach().cpu())
+            if not hasattr(self, 'zi_valid') or self.zi_valid.numel() == 0:
+                print(self.zi.shape)
+                if hasattr(self, 'zi'):
+                    self.learn.zi_valid = self.zi
+                else:
+                    self.learn.zi_valid = self.generator.zi
+            else:
+                if hasattr(self, 'zi'):
+                    self.learn.zi_valid = torch.vstack((self.learn.zi_valid,self.zi))
+                else:
+                    self.learn.zi_valid = torch.vstack((self.learn.zi_valid,self.generator.zi))
 
-    def after_validate(self):
-        self.learn.latent_z      = torch.cat(self._zs,    dim=0)
-        self.learn.latent_targs  = torch.cat(self._targs, dim=0)
-
-
-# ---------------------------------------------------------------------------
-# 5. Statistics utilities
-# ---------------------------------------------------------------------------
-
-def distrib_regul_regression(
-    z: np.ndarray,
-    target: np.ndarray,
-    nbins: int = 100,
-    get_reg: bool = False,
-):
-    """
-    Label-distribution-smoothing (LDS) weighted linear regression of the
-    latent / embedded space against the labels.
-
-    Returns predicted values (and optionally the fitted LinearRegression).
-    """
-    if isinstance(target, torch.Tensor):
-        target = target.numpy()
-    if isinstance(z, torch.Tensor):
-        z = z.numpy()
-
-    bin_edges           = np.linspace(target.min(), target.max(), nbins + 1)
-    bin_indices         = np.digitize(target, bin_edges).tolist()
-
-    Nb                  = max(bin_indices) + 1
-    counts              = dict(Counter(bin_indices))
-    emp_dist            = [counts.get(i, 0) for i in range(Nb)]
-
-    kernel              = _lds_kernel("gaussian", ks=5, sigma=2)
-    eff_dist            = convolve1d(np.array(emp_dist), weights=kernel, mode="constant")
-
-    weights = np.array(
-        [np.float32(1.0 / max(eff_dist[idx], 1e-6)) for idx in bin_indices]
-    )
-
-    reg  = LinearRegression().fit(z, target.flatten(), sample_weight=weights)
-    pred = z @ reg.coef_ + reg.intercept_
-
-    return (pred, reg) if get_reg else pred
+class LossAttrMetric(Metric):
+    def __init__(self, attr):
+        self.attr_name = attr
+        self.vals = []
+    def reset(self):
+        self.vals = []
+    def accumulate(self, learn):
+        setattr(self, self.attr_name, getattr(learn, self.attr_name))
+        self.vals.append(getattr(self, self.attr_name))
+    @property
+    def value(self):
+        return torch.mean(torch.tensor(self.vals))
+    @property
+    def name(self):
+        return self.attr_name
 
 
-def compute_main_direction(embedded: np.ndarray, labels: np.ndarray):
-    """
-    Compute a directional arrow in 2-D t-SNE space separating class 0 and 1.
+def label_func(f): 
+    name = f.name #on veut accéder aux noms uniquement
+    if name[0].isupper(): #on veut tester la première lettre uniquement donc on applique "isupper" au premier élément de name (name[0])
+        lab = torch.tensor([1, 0], dtype=torch.float32)
+    else:
+        lab = torch.tensor([0, 1], dtype=torch.float32)
+    return lab
 
-    Returns (start, end) as (x, y) tuples for plt.arrow / ax.arrow.
-    """
-    mean_0 = embedded[labels == 0].mean(axis=0)
-    mean_1 = embedded[labels == 1].mean(axis=0)
 
-    diff = mean_1 - mean_0
-    dx   = diff[0]
+# Compute the regularized linear regression of the latent space wrt the labels
+def distrib_regul_regression(z, target, nbins: int=100, get_reg: bool=False):
+    bin_edges = np.linspace(target.min(), target.max(), nbins+1)
+    # Assign each value in the data to its corresponding category based on the bin edges
+    labels = np.digitize(target, bin_edges)
+    bin_index_per_label = [int(label) for label in labels]
 
-    # Avoid degenerate vertical direction
-    m = diff[1] / dx if abs(dx) > 1e-6 else 0.0
-    b = mean_0[1] - m * mean_0[0]
+    # calculate empirical (original) label distribution: [Nb,]
+    # "Nb" is the number of bins
+    Nb = max(bin_index_per_label) + 1
+    num_samples_of_bins = dict(Counter(bin_index_per_label))
+    emp_label_dist = [num_samples_of_bins.get(i, 0) for i in range(Nb)]
 
-    x_vals        = embedded[:, 0]
-    x_min, x_max  = x_vals.min(), x_vals.max()
+    # lds_kernel_window: [ks,], here for example, we use gaussian, ks=5, sigma=2
+    lds_kernel_window = get_lds_kernel_window(kernel='gaussian', ks=5, sigma=2)
+    # calculate effective label distribution: [Nb,]
+    eff_label_dist = convolve1d(np.array(emp_label_dist), weights=lds_kernel_window, mode='constant')
 
-    start = (x_min, m * x_min + b)
-    end   = (x_max, m * x_max + b)
+    # Use re-weighting based on effective label distribution, sample-wise weights: [Ns,]
+    eff_num_per_label = [eff_label_dist[bin_idx] for bin_idx in bin_index_per_label]
+    weights = [np.float32(1 / x) for x in eff_num_per_label]
 
-    # Flip direction if class 0 centroid is to the right
-    if mean_0[0] > mean_1[0]:
-        start, end = end, start
+    reg = LinearRegression().fit(z, target.view(-1), sample_weight=weights)
+    out = np.dot(z, reg.coef_) + reg.intercept_
 
+    if get_reg:
+        return out, reg
+    else:
+        return out
+
+
+def compute_main_direction(predictions_embedded, safelab):
+
+    # Calculate the mean of x and y for the darkest and lightest colors
+    dark_mask = safelab == 0
+    light_mask = safelab == 1
+    dark_mean = np.mean(predictions_embedded[dark_mask, :], axis=0)
+    light_mean = np.mean(predictions_embedded[light_mask, :], axis=0)
+    # Get the difference between dark_mean and light_mean
+    diff = light_mean - dark_mean
+    # Calculate the slope
+    m = diff[1] / diff[0]
+    # Calculate the intercept
+    b = dark_mean[1] - m * dark_mean[0]
+
+    # Calculer les points de début et de fin de la droite régressée
+    x, y = predictions_embedded[:, 0], predictions_embedded[:, 1]
+#     max_x = np.max(np.abs(x)) - 5
+#     max_y = np.max(np.abs(y)) - 5
+    max_x = 70
+    max_y = 70
+#     if max_x >= max_y:
+    if np.abs(m) <= 1:
+        x_main = True
+        x_min, x_max = -max_x, max_x
+    else: 
+        x_main = False
+        x_min, x_max = (-max_y - b) / m, (max_y - b) / m
+    y_min, y_max = x_min * m + b, x_max * m + b
+
+    # Sort the trials along the severity direction 
+    x_proj = []
+    for x, y in predictions_embedded:
+        x_proj.append((x + m * y - m * b) / (1 + m ** 2))
+    x_proj = np.array(x_proj)
+    
+    print(dark_mean, light_mean)
+    if dark_mean[0] > light_mean[0]:
+        print('case 1')
+        arrow = -x_proj
+        max_x = -max_x
+#         _, idx_sort = torch.tensor(-x_proj).sort()
+    elif dark_mean[0] < light_mean[0]:
+        arrow = x_proj        
+    else:
+        raise ValueError("Severity direction is vertical")
+        
+    if dark_mean[1] > light_mean[1]:
+        max_y = -max_y
+
+    _, idx_sort = torch.tensor(arrow).sort()
+    # Define start/end point of the arrow
+    if x_main:
+        min_y = m * -max_x + b
+        max_y = m * max_x + b
+        start = (-max_x,min_y)
+        end = (max_x,max_y)
+    else:
+        min_x, max_x = (-max_y - b) / m, (max_y - b) / m
+        start = (min_x,-max_y)
+        end = (max_x,max_y)
+        
     return start, end
 
+def get_lds_kernel_window(kernel, ks, sigma):
+    assert kernel in ['gaussian', 'triang', 'laplace']
+    half_ks = (ks - 1) // 2
+    if kernel == 'gaussian':
+        base_kernel = [0.] * half_ks + [1.] + [0.] * half_ks
+        kernel_window = gaussian_filter1d(base_kernel, sigma=sigma) / max(gaussian_filter1d(base_kernel, sigma=sigma))
+    elif kernel == 'triang':
+        kernel_window = triang(ks)
+    else:
+        laplace = lambda x: np.exp(-abs(x) / sigma) / (2. * sigma)
+        kernel_window = list(map(laplace, np.arange(-half_ks, half_ks + 1))) / max(map(laplace, np.arange(-half_ks, half_ks + 1)))
 
-# ---------------------------------------------------------------------------
-# 6. Internal helpers
-# ---------------------------------------------------------------------------
-
-def _lds_kernel(kernel: str, ks: int, sigma: float) -> np.ndarray:
-    assert kernel in ("gaussian", "triang", "laplace")
-    half = (ks - 1) // 2
-
-    if kernel == "gaussian":
-        base   = [0.0] * half + [1.0] + [0.0] * half
-        window = gaussian_filter1d(base, sigma=sigma)
-        return window / window.max()
-
-    elif kernel == "triang":
-        from scipy.signal import triang as _triang
-        return _triang(ks)
-
-    else:  # laplace
-        xs     = np.arange(-half, half + 1)
-        window = np.exp(-np.abs(xs) / sigma) / (2.0 * sigma)
-        return window / window.max()
+    return kernel_window
