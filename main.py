@@ -1,90 +1,125 @@
 import torch
-from fastai.vision.all import *
-from fastai.data.all import *
-
-from model import AAE
-from utils import UnfreezeFcCritAdaptative, label_func, FreezeDiscriminator, GetLatentSpace, LossAttrMetric, distrib_regul_regression, compute_main_direction
-
-from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
 import seaborn as sns
+from sklearn.manifold import TSNE
+from fastai.vision.all import *
 
+from model import AAE, get_device
+from utils  import (
+    AAETrainingCallback,
+    AAELoss,
+    InjectDiscParams,
+    ExtractLatent,
+    distrib_regul_regression,
+    compute_main_direction,
+)
 
+# ---------------------------------------------------------------------------
+# 0. Device
+# ---------------------------------------------------------------------------
 
-### Define the Dataloader
-data_path = untar_data(URLs.PETS) #checker les autres databases dispo
-print(data_path.ls())
+device = get_device()
+print(f"Using device: {device}")
 
-catblock = MultiCategoryBlock(encoded=True, vocab=['cat', 'dog'])
+# ---------------------------------------------------------------------------
+# 1. DataLoaders
+# ---------------------------------------------------------------------------
+
+path   = untar_data(URLs.PETS)
+images = path / "images"
+
+def label_func(fname):
+    """Cats have upper-case filenames, dogs lower-case."""
+    return "cat" if fname.name[0].isupper() else "dog"
+
 dblock = DataBlock(
-    blocks=(ImageBlock(), catblock),
-    get_items=get_image_files,
-    splitter=RandomSplitter(valid_pct=0.2, seed=42),
-    get_y=label_func,
-    item_tfms=Resize(128),
-    batch_tfms=[Normalize.from_stats(*imagenet_stats)],
+    blocks      = (ImageBlock, CategoryBlock),
+    get_items   = get_image_files,
+    splitter    = RandomSplitter(valid_pct=0.2, seed=42),
+    get_y       = label_func,
+    item_tfms   = Resize(128),
+    batch_tfms  = [Normalize.from_stats(*imagenet_stats)],
 )
 
-# Créez un DataLoader
-dls = dblock.dataloaders(data_path/"images", bs=16, drop_last=True,num_workers=0)
+dls = dblock.dataloaders(images, bs=16, drop_last=True, num_workers=0)
+print(f"Classes: {dls.vocab}")   # ['cat', 'dog']
 
-# Define the model
+# ---------------------------------------------------------------------------
+# 2. Model
+# ---------------------------------------------------------------------------
+
 model = AAE(
-        input_size=128,
-        input_channels=3,
-        encoding_dims=128,
-        classes=2,
+    input_size     = 128,
+    input_channels = 3,
+    encoding_dims  = 128,
+    step_channels  = 16,
+    classes        = len(dls.vocab),    # 2
 )
 
-### Train Autoencoder ###
-metrics = [LossAttrMetric("recons_loss"), accuracy_multi]
-learn = Learner(dls, model, loss_func=model.ae_loss_func, metrics=metrics)
+# ---------------------------------------------------------------------------
+# 3. Learner factory
+# ---------------------------------------------------------------------------
 
-model_file = 'cat_dog_ae_test'
-learning_rate = learn.lr_find()
-learn.fit(100, lr=learning_rate.valley,
-            cbs=[TrackerCallback(),
-                 SaveModelCallback(fname=model_file),
-                 EarlyStoppingCallback(min_delta=1e-4,patience=10)])
+def make_learner(mode: str, load_from: str = None) -> Learner:
+    """
+    Build a Learner for one training phase.
 
-state_dict = torch.load(f'models/{model_file}.pth')
-model.load_state_dict(state_dict, strict=False)
+    mode        Trains
+    --------    -----------------------------------------------
+    'ae'        Encoder + Decoder (reconstruction only)
+    'aae'       + Discriminator   (Gaussian prior matching)
+    'classif'   + Classifier      (full AAE + classification)
+    """
+    cbs = [
+        AAETrainingCallback(mode=mode, disc_steps=1, gen_steps=5),
+        InjectDiscParams(),            # needed by AAELoss to detect phase
+    ]
 
+    learn = Learner(
+        dls,
+        model,
+        loss_func = AAELoss(mode=mode),
+        metrics   = [accuracy],
+        cbs       = cbs,
+    )
 
-### Train Adversarial ###
-metrics = [LossAttrMetric("adv_loss"), LossAttrMetric("recons_loss"), LossAttrMetric("crit_loss"),
-           accuracy_multi]
-learn = Learner(dls, model, loss_func=model.aae_loss_func, metrics=metrics)
+    if load_from is not None:
+        learn.load(load_from, strict=False)
+        print(f"  Loaded weights from '{load_from}'")
 
-model_file = 'cat_dog_aae_test'
-learn.fit(100, lr=5e-3,
-            cbs=[GradientAccumulation(n_acc=16*4),
-                 TrackerCallback(),
-                 SaveModelCallback(fname=model_file),
-                 EarlyStoppingCallback(min_delta=1e-4,patience=10),
-               #   FreezeDiscriminator()]),
-                 UnfreezeFcCritAdaptative()])
+    return learn
 
-state_dict = torch.load(f'models/{model_file}.pth')
-model.load_state_dict(state_dict, strict=False)
+# ---------------------------------------------------------------------------
+# 4. Phase 1 — Autoencoder (reconstruction baseline)
+# ---------------------------------------------------------------------------
 
+print("\n── Phase 1 : Autoencoder ──────────────────────────────────────────")
+learn = make_learner(mode="ae")
+learn.fit_one_cycle(
+    20,
+    lr_max    = 1e-3,
+    cbs       = [
+        SaveModelCallback(fname="phase1_ae"),
+        EarlyStoppingCallback(patience=5, min_delta=1e-4),
+    ],
+)
+learn.save("phase1_ae")
 
-### Train Classifier ###
-metrics = [LossAttrMetric("adv_loss"), LossAttrMetric("recons_loss"),
-           LossAttrMetric("classif_loss"), LossAttrMetric("crit_loss"),
-           accuracy_multi]
-monitor_loss = 'valid_loss'
-learn = Learner(dls, model, loss_func=model.classif_loss_func, metrics=metrics)
+# ---------------------------------------------------------------------------
+# 5. Phase 2 — Adversarial training (Gaussian prior)
+# ---------------------------------------------------------------------------
 
-model_file = 'cat_dog_aae_classif_test'
-learn.fit(100, lr=1e-2,
-            cbs=[GradientAccumulation(n_acc=16*4),
-                 TrackerCallback(monitor=monitor_loss),
-                 SaveModelCallback(fname=model_file,monitor=monitor_loss),
-                 EarlyStoppingCallback(min_delta=1e-4,patience=10,monitor=monitor_loss),
-               #   FreezeDiscriminator()])
-                 UnfreezeFcCritAdaptative()])
+print("\n── Phase 2 : AAE (adversarial) ────────────────────────────────────")
+learn = make_learner(mode="aae", load_from="phase1_ae")
+learn.fit_one_cycle(
+    30,
+    lr_max    = 5e-4,
+    cbs       = [
+        SaveModelCallback(fname="phase2_aae"),
+        EarlyStoppingCallback(patience=5, min_delta=1e-4),
+    ],
+)
+learn.save("phase2_aae")
 
 ### Display the latent space ###
 #learn.load(f'models/{model_file}', strict=False)
