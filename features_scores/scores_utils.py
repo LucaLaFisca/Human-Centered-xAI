@@ -4,6 +4,7 @@ from torchvision.io import read_image, ImageReadMode
 import torchvision.transforms.functional as tfms
 from tqdm.auto import tqdm
 import pandas as pd
+import numpy as np
 
 def mapping(learn):
     """This function performs a comprehensive mapping of the model's predictions back to the original dataset instances,
@@ -128,6 +129,116 @@ def compute_fft_scores(image_paths, radius=30):
             scores.append(last_valid_score)
             
     return scores
+
+
+
+def compute_entropy_scores(image_paths):
+    scores = []
+    last_valid_score = 0.0
+
+    for img_path in tqdm(image_paths, desc="Calcul des scores Entropie"):
+        try:
+            img = read_image(str(img_path), mode=ImageReadMode.GRAY)
+            if img.shape[0] > 1:
+                img = tfms.rgb_to_grayscale(img[:3])
+            img = tfms.resize(img, [200, 200], antialias=True).squeeze().float()
+
+            hist = torch.histc(img, bins=256, min=0, max=255)
+            p = hist / hist.sum()
+            p = p[p > 0]
+            entropy = -torch.sum(p * torch.log2(p)).item()
+
+            score = entropy / 8.0
+            #score = float(np.clip(score, 0.0, 1.0))
+            score = float(torch.clamp(torch.tensor(score), 0.0, 1.0))
+            scores.append(score)
+            last_valid_score = score
+
+        except Exception as e:
+            print(f"Error for {img_path.name}: {e} -> Assigning previous score: {last_valid_score:.4f}")
+            scores.append(last_valid_score)
+
+    return scores
+
+
+def compute_contrast_scores(image_paths):
+    scores = []
+    last_valid_score = 0.0
+
+    for img_path in tqdm(image_paths, desc="Calcul des scores Contraste"):
+        try:
+            img = read_image(str(img_path), mode=ImageReadMode.GRAY)
+            if img.shape[0] > 1:
+                img = tfms.rgb_to_grayscale(img[:3])
+            img = tfms.resize(img, [200, 200], antialias=True).squeeze().float()
+
+            diff_h = torch.abs(img[:, 1:] - img[:, :-1])
+            diff_v = torch.abs(img[1:, :] - img[:-1, :])
+            contrast = (diff_h.mean() + diff_v.mean()) / 2.0
+
+            #score = float(np.clip((contrast / 128.0).item(), 0.0, 1.0))
+            score = float(torch.clamp(contrast / 128.0, 0.0, 1.0).item())
+            scores.append(score)
+            last_valid_score = score
+
+        except Exception as e:
+            print(f"Error for {img_path.name}: {e} -> Assigning previous score: {last_valid_score:.4f}")
+            scores.append(last_valid_score)
+
+    return scores
+
+
+def compute_symmetry_scores(image_paths):
+    scores = []
+    last_valid_score = 0.0
+
+    for img_path in tqdm(image_paths, desc="Calcul des scores Symétrie"):
+        try:
+            img = read_image(str(img_path), mode=ImageReadMode.GRAY)
+            if img.shape[0] > 1:
+                img = tfms.rgb_to_grayscale(img[:3])
+            img = tfms.resize(img, [200, 200], antialias=True).squeeze().float()
+
+            left  = img[:, :100]
+            right = torch.flip(img[:, 100:], dims=[1])
+            diff  = torch.abs(left - right).mean()
+
+            #score = float(np.clip(1.0 - (diff / 128.0).item(), 0.0, 1.0))
+            score = float(torch.clamp(1.0 - (diff / 128.0), 0.0, 1.0).item())
+            scores.append(score)
+            last_valid_score = score
+
+        except Exception as e:
+            print(f"Error for {img_path.name}: {e} -> Assigning previous score: {last_valid_score:.4f}")
+            scores.append(last_valid_score)
+
+    return scores
+
+
+def compute_compactness_scores(image_paths):
+    scores = []
+    last_valid_score = 0.0
+
+    for img_path in tqdm(image_paths, desc="Calcul des scores Compacité"):
+        try:
+            img = read_image(str(img_path), mode=ImageReadMode.GRAY)
+            if img.shape[0] > 1:
+                img = tfms.rgb_to_grayscale(img[:3])
+            img = tfms.resize(img, [200, 200], antialias=True).squeeze().float()
+
+            threshold = find_otsu_threshold(img)
+            foreground = (img >= threshold).float()
+            #score = float(np.clip(foreground.mean().item(), 0.0, 1.0))
+            score = float(torch.clamp(foreground.mean(), 0.0, 1.0).item())
+            scores.append(score)
+            last_valid_score = score
+
+        except Exception as e:
+            print(f"Error for {img_path.name}: {e} -> Assigning previous score: {last_valid_score:.4f}")
+            scores.append(last_valid_score)
+
+    return scores
+
 
 
 def find_otsu_threshold(im_gray):
