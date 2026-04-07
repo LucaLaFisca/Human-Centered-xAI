@@ -6,16 +6,7 @@ from fastai.data.all import *
 
 # dev = 'cuda:3'
 # torch.cuda.set_device(dev)
-if torch.cuda.is_available():
-    # Pour les machines avec un GPU Nvidia
-    dev = torch.device('cuda')
-    # dev = torch.cuda.current_device() # Optionnel si tu as besoin de l'index entier
-elif torch.backends.mps.is_available():
-    # Pour les Mac avec puce Apple Silicon
-    dev = torch.device('mps')
-else:
-    # Solution de repli par défaut si aucun GPU n'est détecté
-    dev = torch.device('cpu')
+dev = torch.cuda.current_device()
 
 
 class AAE(nn.Module):
