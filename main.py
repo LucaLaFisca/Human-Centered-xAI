@@ -38,7 +38,7 @@ model = AAE(
 )
 
 ### Train Autoencoder ###
-metrics = [LossAttrMetric("recons_loss"), accuracy_multi]
+metrics = [LossAttrMetric("recons_loss")]
 learn = Learner(dls, model, loss_func=model.ae_loss_func, metrics=metrics)
 
 model_file = 'cat_dog_ae_test'
@@ -107,15 +107,16 @@ torch.save(new_zi, 'z_aae.pt')
 print(f"Ze shape : {new_zi.shape}")
 
 # ── Labels depuis le DataLoader (alignés sur new_zi via drop_last) ───
-train_labels = torch.cat([y for _, y in dls.train], dim=0)
-valid_labels = torch.cat([y for _, y in dls.valid], dim=0)
-lab_gather   = torch.cat([train_labels, valid_labels], dim=0)
+#train_labels = torch.cat([y for _, y in dls.train], dim=0)
+#valid_labels = torch.cat([y for _, y in dls.valid], dim=0)
+#lab_gather   = torch.cat([train_labels, valid_labels], dim=0)
 
-N_min      = min(len(lab_gather), len(new_zi))
-lab_gather = lab_gather[:N_min, 1].float().cpu()  # 0.0=cat, 1.0=dog
-category   = ['dog' if l == 1 else 'cat' for l in lab_gather.numpy()]
+#N_min      = min(len(lab_gather), len(new_zi))
+#lab_gather = lab_gather[:N_min, 1].float().cpu()  # 0.0=cat, 1.0=dog
+#category   = ['dog' if l == 1 else 'cat' for l in lab_gather.numpy()]
 
 # ── t-SNE sur Ze aligné ──────────────────────────────────────────────
+# WARNING : Partie du code qui ne fonctionne pas pour l'instant !!!
 tsne = TSNE(random_state=42)
 z    = new_zi[:N_min].view(-1, 128)
 predictions_embedded = tsne.fit_transform(z.cpu().detach().numpy())
