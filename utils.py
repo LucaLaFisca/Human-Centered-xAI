@@ -7,7 +7,7 @@ from collections import Counter
 from scipy.ndimage import convolve1d, gaussian_filter1d
 
 class UnfreezeFcCritAdaptative(Callback):
-    def __init__(self, switch_every: int = 3, low_threshold: float = 0.55, high_threshold: float = 0.80, window_size: int = 3):
+    def __init__(self, switch_every: int = 3, low_threshold: float = 0.15, high_threshold: float = 0.60, window_size: int = 3):
         self.switch_every = switch_every
         self.low_threshold = low_threshold  
         self.high_threshold = high_threshold  
