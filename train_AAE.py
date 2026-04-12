@@ -100,3 +100,35 @@ try:
         
 except Exception as e:
     print(f"Erreur lors du calcul (vérifiez que N_total > 128) : {e}")
+
+#Test d'interpolation
+def verifier_interpolation(learn, dls, filename="interpolation_latent.png"):
+    learn.model.eval()
+    xb, yb = dls.one_batch()
+    
+    with torch.no_grad():
+        # On encode le batch pour avoir les vecteurs zi
+        _ = learn.model(xb)
+        z = learn.model.zi
+        
+        # On prend deux vecteurs latents (ex: image 0 et image 1)
+        z1, z2 = z[0], z[1]
+        
+        # On crée 10 étapes entre z1 et z2
+        alpha = torch.linspace(0, 1, 10).to(z.device)
+        interp_z = torch.stack([(1 - a) * z1 + a * z2 for a in alpha])
+        
+        # On décode ces 10 étapes
+        interp_images = learn.model.decoder(interp_z).cpu().numpy()
+
+    # Affichage
+    fig, axes = plt.subplots(1, 10, figsize=(20, 2))
+    for i in range(10):
+        img = np.transpose(interp_images[i], (1, 2, 0))
+        axes[i].imshow(np.clip((img * 0.5) + 0.5, 0, 1))
+        axes[i].axis('off')
+    
+    plt.savefig(filename)
+    print(f"L'interpolation a été sauvegardée dans : {filename}")
+print("Génération de l'interpolation...")
+verifier_interpolation(learn, dls)        
