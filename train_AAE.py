@@ -45,6 +45,7 @@ learn = Learner(dls, model, loss_func=model.aae_loss_func, metrics=metrics)
 
 model_file = 'cat_dog_aae_test'
 learning_rate = learn.lr_find()
+print("learning rate :", learning_rate)
 learn.fit(100, lr=learning_rate,
             cbs=[GradientAccumulation(n_acc=16*4),
                  TrackerCallback(),
