@@ -117,8 +117,11 @@ def verifier_interpolation(learn, dls, filename="interpolation_latent.png"):
         # On crée 10 étapes entre z1 et z2
         alpha = torch.linspace(0, 1, 10).to(z.device)
         interp_z = torch.stack([(1 - a) * z1 + a * z2 for a in alpha])
-        # CORRECTION ICI : On rajoute les dimensions spatiales (Hauteur=1, Largeur=1)
-        interp_z = interp_z.view(-1, 128, 1, 1)
+        # 1. On passe par la couche linéaire de transition
+        dec_in = learn.model.decoder_fc(interp_z)
+        
+        # 2. On redimensionne exactement comme dans le model.py
+        dec_in = dec_in.view(-1, 16, 4, 4)
         # On décode ces 10 étapes
         interp_images = learn.model.decoder(interp_z).cpu().numpy()
 
