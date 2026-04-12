@@ -80,7 +80,7 @@ class AAE(nn.Module):
 
 
     def latent_gan(self, zi: Tensor) -> Tensor:
-         # zi shape : (batch_size, 128) — échantillons individuels
+        # zi shape : (batch_size, 128) — échantillons individuels
         x = F.leaky_relu(self.bn_crit1(self.fc_crit1(zi)), negative_slope=0.2)
         x = F.leaky_relu(self.bn_crit2(self.fc_crit2(x)),  negative_slope=0.2)
         x = torch.sigmoid(self.fc_crit3(x))  # (batch_size, 1)
@@ -91,11 +91,17 @@ class AAE(nn.Module):
         self.input_image = x
 
         features = self.encoder(x) # modifier relu en leaky_relu
-        self.zi = F.leaky_relu(self.bn_lin(self.encoder_fc(
-                    features.view(
-                        -1, features.size(1) * features.size(2) * features.size(3)
-                    )
-                )))
+        # self.zi = F.leaky_relu(self.bn_lin(self.encoder_fc(
+        #             features.view(
+        #                 -1, features.size(1) * features.size(2) * features.size(3)
+        #             )
+        #         )))
+        # Test self.zi sans batch norm et leaky relu
+        self.zi = self.encoder_fc(
+            features.view(
+                -1, features.size(1) * features.size(2) * features.size(3)
+            )
+        )
 
         x = self.decoder_fc(self.zi)
         self.decoder_output = self.decoder(x.view(-1, x.size(1), 1, 1))
@@ -190,7 +196,7 @@ class AAE(nn.Module):
         self.classif_loss = bce(output, target)
 
         # loss = self.adv_loss + .1*self.recons_loss + .4*self.classif_loss
-        loss = self.adv_loss + .1*self.recons_loss + .001*self.classif_loss
+        loss = self.adv_loss + .05*self.recons_loss #changed self.recons from 0.1 to 0.05
 
         # print(f'Losses: {loss.shape, self.kld_loss.shape, self.recons_loss.shape, self.classif_loss.shape}')
             
