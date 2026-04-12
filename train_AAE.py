@@ -44,7 +44,8 @@ metrics = [LossAttrMetric("adv_loss"), LossAttrMetric("recons_loss"), LossAttrMe
 learn = Learner(dls, model, loss_func=model.aae_loss_func, metrics=metrics)
 
 model_file = 'cat_dog_aae_test'
-learn.fit(100, lr=5e-3,
+learning_rate = learn.lr_find()
+learn.fit(100, lr=learning_rate,
             cbs=[GradientAccumulation(n_acc=16*4),
                  TrackerCallback(),
                  SaveModelCallback(fname=model_file),
