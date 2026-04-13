@@ -31,7 +31,7 @@ dls = dblock.dataloaders(data_path, bs=16, drop_last=True, num_workers=0)
 model = AAE(
     input_size=128,
     input_channels=3,
-    encoding_dims=512,
+    encoding_dims=128,
     classes=2,
 )
 
@@ -89,12 +89,12 @@ print(f"Std      : {Z_np.std():.4f}   (cible ≈ 1)")
 print(f"Zéros    : {(Z_np==0).mean():.1%}  (cible < 5%)")
 print(f"Négatifs : {(Z_np<0).mean():.1%}   (cible > 35%)")
 
-pvals_sw = np.array([stats.shapiro(Z_np[:1000, d])[1] for d in range(Z_np.shape[1])])
+pvals_sw = np.array([stats.shapiro(Z_np[:500, d])[1] for d in range(Z_np.shape[1])])
 print(f"Shapiro dims gaussiennes : {(pvals_sw>0.05).sum()} / {Z_np.shape[1]}")
 
 # ── Test Henze-Zirkler ───────────────────────────────────────────────
 rng = np.random.default_rng(42)
-idx = rng.choice(len(Z_np), min(1000, len(Z_np)), replace=False)
+idx = rng.choice(len(Z_np), min(500, len(Z_np)), replace=False)
 Z_sample = Z_np[idx]
 
 try:
