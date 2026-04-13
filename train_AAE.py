@@ -1,21 +1,20 @@
 import torch
 from fastai.vision.all import *
 from fastai.data.all import *
-
-from model import AAE
-from utils import UnfreezeFcCritAdaptative, label_func, FreezeDiscriminator, GetLatentSpace, LossAttrMetric, distrib_regul_regression, compute_main_direction
-
-from sklearn.manifold import TSNE
+import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import seaborn as sns
+import pingouin as pg
+from sklearn.manifold import TSNE
+from scipy import stats
 
+from model import AAE
+from utils import (UnfreezeFcCritAdaptative, label_func, GetLatentSpace,
+                   LossAttrMetric, distrib_regul_regression, compute_main_direction)
 
-
-### Define the Dataloader
-data_path = untar_data(URLs.PETS) #checker les autres databases dispo
-print(data_path.ls())
-
+# ── DataLoader ───────────────────────────────────────────────────────
+data_path = untar_data(URLs.PETS)
 catblock = MultiCategoryBlock(encoded=True, vocab=['cat', 'dog'])
 dblock = DataBlock(
     blocks=(ImageBlock(), catblock),
@@ -25,117 +24,135 @@ dblock = DataBlock(
     item_tfms=Resize(128),
     batch_tfms=[Normalize.from_stats(*imagenet_stats)],
 )
+dls = dblock.dataloaders(data_path/"images", bs=16, drop_last=True, num_workers=0)
 
-# Créez un DataLoader
-dls = dblock.dataloaders(data_path/"images", bs=16, drop_last=True,num_workers=0)
-
-# Define the model
+# ── Modèle ───────────────────────────────────────────────────────────
 model = AAE(
-        input_size=128,
-        input_channels=3,
-        encoding_dims=128,
-        classes=2,
+    input_size=128,
+    input_channels=3,
+    encoding_dims=128,
+    classes=2,
 )
 
-## Partie AAE
-### Train Adversarial ###
-metrics = [LossAttrMetric("adv_loss"), LossAttrMetric("recons_loss"), LossAttrMetric("crit_loss"),
-           accuracy_multi]
+# ── Entraînement AAE ─────────────────────────────────────────────────
+metrics = [LossAttrMetric("adv_loss"), LossAttrMetric("recons_loss"),
+           LossAttrMetric("crit_loss"), accuracy_multi]
 learn = Learner(dls, model, loss_func=model.aae_loss_func, metrics=metrics)
 
 model_file = 'cat_dog_aae_test'
 learning_rate = learn.lr_find()
-print("learning rate :", learning_rate)
-learn.fit(100, lr=learning_rate,
-            cbs=[GradientAccumulation(n_acc=16*4),
-                 TrackerCallback(),
-                 SaveModelCallback(fname=model_file),
-                 EarlyStoppingCallback(min_delta=1e-4,patience=10),
-               #   FreezeDiscriminator()]),
-                 UnfreezeFcCritAdaptative(),
-                 GetLatentSpace()])
+print(f"Learning rate valley : {learning_rate.valley:.6f}")
 
-state_dict = torch.load(f'models/{model_file}.pth')
+learn.fit(100, lr=learning_rate.valley,
+    cbs=[
+        GradientAccumulation(n_acc=16*2),          # réduit de 64 → 32
+        TrackerCallback(),
+        SaveModelCallback(fname=model_file),
+        EarlyStoppingCallback(min_delta=1e-4, patience=10),
+        UnfreezeFcCritAdaptative(),
+    ]
+)
+
+# ── Recharger le meilleur checkpoint ────────────────────────────────
+state_dict = torch.load(f'models/{model_file}.pth', map_location='cpu')
 model.load_state_dict(state_dict, strict=False)
+model.eval()
 
-# Sauvegarde de l'espace latent en fichier .pt
-torch.save(learn.zi_valid.cpu(), "espace_latent_pets.pt")
-print("L'espace latent a été sauvegardé avec succès dans espace_latent_pets.pt")
-## Partie Gemini
-import torch
-import numpy as np
-import pingouin as pg
+# ── Extraire Ze via get_preds ────────────────────────────────────────
+dev = f'cuda:{torch.cuda.current_device()}' if torch.cuda.is_available() else 'cpu'
+learn.zi_valid = torch.tensor([]).to(dev)
+learn.get_preds(ds_idx=0, cbs=[GetLatentSpace()])
+ze_train = learn.zi_valid.clone()
 
-# On met le modèle en mode évaluation
-learn.model.eval()
+learn.zi_valid = torch.tensor([]).to(dev)
+learn.get_preds(ds_idx=1, cbs=[GetLatentSpace()])
+ze_valid = learn.zi_valid.clone()
 
-print("\n--- Évaluation de la normalité de l'espace latent (Henze-Zirkler) ---")
+new_zi = torch.vstack((ze_train, ze_valid))
+torch.save(new_zi, 'espace_latent_pets.pt')
+print(f"Ze shape : {new_zi.shape}")
 
-tous_les_latents = []
+# ── Labels alignés ───────────────────────────────────────────────────
+train_labels = torch.cat([y for _, y in dls.train], dim=0)
+valid_labels = torch.cat([y for _, y in dls.valid], dim=0)
+lab_gather   = torch.cat([train_labels, valid_labels], dim=0)
+N_min        = min(len(lab_gather), len(new_zi))
+lab_gather   = lab_gather[:N_min, 1].float().cpu()
+category     = ['dog' if l == 1 else 'cat' for l in lab_gather.numpy()]
 
-# 1. Collecter les vecteurs latents sur tout l'ensemble de validation
-for i, (xb, yb) in enumerate(dls.valid):
-    with torch.no_grad():
-        # Passe forward pour générer l'espace latent
-        # Assurez-vous que la méthode forward ou une autre méthode 
-        # vous permet de récupérer "zi" (l'espace latent)
-        _ = learn.model(xb) 
-        latent_batch = learn.model.zi.cpu().numpy()
-        tous_les_latents.append(latent_batch)
+# ── Diagnostic gaussianité ───────────────────────────────────────────
+Z_np = new_zi[:N_min].cpu().numpy()
+print(f"\n=== Diagnostic Ze ===")
+print(f"Mean     : {Z_np.mean():.4f}  (cible ≈ 0)")
+print(f"Std      : {Z_np.std():.4f}   (cible ≈ 1)")
+print(f"Zéros    : {(Z_np==0).mean():.1%}  (cible < 5%)")
+print(f"Négatifs : {(Z_np<0).mean():.1%}   (cible > 35%)")
 
-# 2. Concaténer pour obtenir une matrice de taille (N_total, 128)
-Z_total = np.concatenate(tous_les_latents, axis=0)
-print(f"Dimensions de l'espace latent accumulé : {Z_total.shape}")
+pvals_sw = np.array([stats.shapiro(Z_np[:500, d])[1] for d in range(128)])
+print(f"Shapiro dims gaussiennes : {(pvals_sw>0.05).sum()} / 128")
 
-# 3. Calcul du test de Henze-Zirkler
-# Attention : sur 128 dimensions avec beaucoup de données, ce test peut être un peu long à calculer
+# ── Test Henze-Zirkler ───────────────────────────────────────────────
+rng = np.random.default_rng(42)
+idx = rng.choice(len(Z_np), min(500, len(Z_np)), replace=False)
+Z_sample = Z_np[idx]
+
 try:
-    hz_stat, p_value, is_normal = pg.multivariate_normality(Z_total, alpha=0.05)
-    
-    print("\n=> Résultats du test de Henze-Zirkler :")
-    print(f"Statistique HZ : {hz_stat:.4f}")
-    print(f"P-value        : {p_value:.4e}")
-    
-    if is_normal:
-        print("Conclusion : La distribution EST considérée comme une Gaussienne multivariée.")
-    else:
-        print("Conclusion : La distribution N'EST PAS une Gaussienne multivariée stricte.")
-        
+    hz_stat, p_value, is_normal = pg.multivariate_normality(Z_sample, alpha=0.05)
+    print(f"\n=== Henze-Zirkler (N=500, D=128) ===")
+    print(f"HZ statistic : {hz_stat:.4f}")
+    print(f"P-value      : {p_value:.4e}")
+    print(f"Gaussien ?   : {'✔ OUI' if is_normal else '✘ NON'}")
 except Exception as e:
-    print(f"Erreur lors du calcul (vérifiez que N_total > 128) : {e}")
+    print(f"Erreur HZ : {e}")
 
-#Test d'interpolation
+# ── t-SNE ────────────────────────────────────────────────────────────
+print("\n▶ t-SNE en cours...")
+tsne = TSNE(n_components=2, perplexity=50, learning_rate='auto',
+            init='pca', random_state=42, n_jobs=-1)
+predictions_embedded = tsne.fit_transform(Z_np)
+
+y_pred_embed = distrib_regul_regression(predictions_embedded, lab_gather)
+
+fig, ax = plt.subplots(figsize=(10, 8))
+sns.scatterplot(x=predictions_embedded[:, 0], y=predictions_embedded[:, 1],
+                hue=category, s=25, alpha=0.7, ax=ax)
+try:
+    start, end = compute_main_direction(predictions_embedded, y_pred_embed)
+    ax.arrow(start[0], start[1], end[0]-start[0], end[1]-start[1],
+             linewidth=3, head_width=10, head_length=10,
+             fc='#8B0000', ec='#8B0000', length_includes_head=True)
+except ValueError as e:
+    print(f"Direction arrow skipped : {e}")
+
+maxabs = np.max(np.abs(predictions_embedded)) + 5
+plt.xlim([-maxabs, maxabs])
+plt.ylim([-maxabs, maxabs])
+ax.set_xticks([]); ax.set_yticks([])
+plt.savefig('latent_space_tsne.png', dpi=150, bbox_inches='tight')
+plt.close()
+print("✔ latent_space_tsne.png")
+
+# ── Interpolation ────────────────────────────────────────────────────
 def verifier_interpolation(learn, dls, filename="interpolation_latent.png"):
     learn.model.eval()
     xb, yb = dls.one_batch()
-    
     with torch.no_grad():
-        # On encode le batch pour avoir les vecteurs zi
         _ = learn.model(xb)
-        z = learn.model.zi
-        
-        # On prend deux vecteurs latents (ex: image 0 et image 1)
+        z  = learn.model.zi
         z1, z2 = z[0], z[1]
-        
-        # On crée 10 étapes entre z1 et z2
-        alpha = torch.linspace(0, 1, 10).to(z.device)
-        interp_z = torch.stack([(1 - a) * z1 + a * z2 for a in alpha])
-        # 1. On passe par la couche linéaire de transition
-        dec_in = learn.model.decoder_fc(interp_z)
-        
-        # 2. On redimensionne exactement comme dans le model.py
-        dec_in = dec_in.view(-1, 16, 1, 1)
-        # On décode ces 10 étapes
-        interp_images = learn.model.decoder(dec_in).cpu().numpy()
+        alpha      = torch.linspace(0, 1, 10).to(z.device)
+        interp_z   = torch.stack([(1-a)*z1 + a*z2 for a in alpha])
+        dec_in     = learn.model.decoder_fc(interp_z)
+        dec_in     = dec_in.view(-1, dec_in.size(1), 1, 1)  # corrigé
+        interp_imgs = learn.model.decoder(dec_in).cpu().numpy()
 
-    # Affichage
     fig, axes = plt.subplots(1, 10, figsize=(20, 2))
     for i in range(10):
-        img = np.transpose(interp_images[i], (1, 2, 0))
+        img = np.transpose(interp_imgs[i], (1, 2, 0))
         axes[i].imshow(np.clip((img * 0.5) + 0.5, 0, 1))
         axes[i].axis('off')
-    
-    plt.savefig(filename)
-    print(f"L'interpolation a été sauvegardée dans : {filename}")
-print("Génération de l'interpolation...")
-verifier_interpolation(learn, dls)        
+    plt.savefig(filename, dpi=120, bbox_inches='tight')
+    plt.close()
+    print(f"✔ {filename}")
+
+verifier_interpolation(learn, dls)
