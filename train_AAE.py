@@ -45,11 +45,11 @@ print(f"Learning rate valley : {learning_rate.valley:.6f}")
 
 learn.fit(100, lr=learning_rate.valley,
     cbs=[
-        GradientAccumulation(n_acc=16*2),          # réduit de 64 → 32
+        GradientAccumulation(n_acc=16*4),          # réduit de 64 → 32
         TrackerCallback(),
         SaveModelCallback(fname=model_file),
         EarlyStoppingCallback(min_delta=1e-4, patience=10),
-        UnfreezeFcCritAdaptative(),
+        UnfreezeFcCritAdaptative(high_threshold=0.4),
     ]
 )
 
