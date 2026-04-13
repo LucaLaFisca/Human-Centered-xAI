@@ -111,7 +111,8 @@ print("\n▶ t-SNE en cours...")
 tsne = TSNE(n_components=2, perplexity=50, learning_rate='auto',
             init='pca', random_state=42, n_jobs=-1)
 predictions_embedded = tsne.fit_transform(Z_np)
-
+vocab = dls.vocab
+category = [vocab[int(l)] for l in lab_gather.numpy()]
 y_pred_embed = distrib_regul_regression(predictions_embedded, lab_gather)
 
 fig, ax = plt.subplots(figsize=(10, 8))
