@@ -52,12 +52,15 @@ learn.fit(100, lr=learning_rate,
                  SaveModelCallback(fname=model_file),
                  EarlyStoppingCallback(min_delta=1e-4,patience=10),
                #   FreezeDiscriminator()]),
-                 UnfreezeFcCritAdaptative()])
+                 UnfreezeFcCritAdaptative(),
+                 GetLatentSpace()])
 
 state_dict = torch.load(f'models/{model_file}.pth')
 model.load_state_dict(state_dict, strict=False)
 
-
+# Sauvegarde de l'espace latent en fichier .pt
+torch.save(learn.zi_valid.cpu(), "espace_latent_pets.pt")
+print("L'espace latent a été sauvegardé avec succès dans espace_latent_pets.pt")
 ## Partie Gemini
 import torch
 import numpy as np
