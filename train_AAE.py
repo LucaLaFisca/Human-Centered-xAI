@@ -46,7 +46,7 @@ print(f"Learning rate valley : {learning_rate.valley:.6f}")
 
 learn.fit_one_cycle(100, lr_max=learning_rate.valley,
     cbs=[
-        GradientAccumulation(n_acc=16*4),          # réduit de 64 → 32
+        GradientAccumulation(n_acc=16),          # réduit de 64 → 32
         TrackerCallback(),
         SaveModelCallback(fname=model_file),
         EarlyStoppingCallback(min_delta=1e-4, patience=10),
