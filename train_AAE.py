@@ -14,7 +14,8 @@ from utils import (UnfreezeFcCritAdaptative, label_func, GetLatentSpace,
                    LossAttrMetric, distrib_regul_regression, compute_main_direction)
 
 # ── DataLoader ───────────────────────────────────────────────────────
-data_path = untar_data(URLs.PETS)
+#data_path = untar_data(URLs.PETS)
+data_path =Path("/home/lucaBA3/Arda/Human-Centered-xAI/db_brain_tumor")
 catblock = MultiCategoryBlock(encoded=True, vocab=['cat', 'dog'])
 dblock = DataBlock(
     blocks=(ImageBlock(), catblock),
@@ -30,7 +31,7 @@ dls = dblock.dataloaders(data_path/"images", bs=16, drop_last=True, num_workers=
 model = AAE(
     input_size=128,
     input_channels=3,
-    encoding_dims=128,
+    encoding_dims=2048,
     classes=2,
 )
 
@@ -43,13 +44,13 @@ model_file = 'cat_dog_aae_test'
 learning_rate = learn.lr_find()
 print(f"Learning rate valley : {learning_rate.valley:.6f}")
 
-learn.fit(100, lr=learning_rate.valley,
+learn.fit_one_cycle(100, lr=learning_rate.valley,
     cbs=[
-        GradientAccumulation(n_acc=16*2),          # réduit de 64 → 32
+        GradientAccumulation(n_acc=16*4),          # réduit de 64 → 32
         TrackerCallback(),
         SaveModelCallback(fname=model_file),
         EarlyStoppingCallback(min_delta=1e-4, patience=10),
-        UnfreezeFcCritAdaptative(high_threshold=0.4,low_threshold=0.08),
+        UnfreezeFcCritAdaptative(high_threshold=0.4,low_threshold=0.08,switch_every=5),
     ]
 )
 
