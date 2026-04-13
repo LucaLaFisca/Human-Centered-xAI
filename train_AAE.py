@@ -16,7 +16,7 @@ from utils import (UnfreezeFcCritAdaptative, label_func, GetLatentSpace,
 # ── DataLoader ───────────────────────────────────────────────────────
 #data_path = untar_data(URLs.PETS)
 data_path =Path("/home/lucaBA3/Arda/Human-Centered-xAI/db_brain_tumor")
-catblock = MultiCategoryBlock(encoded=True, vocab=['cat', 'dog'])
+catblock = MultiCategoryBlock(encoded=True, vocab=['tumor', 'normal'])
 dblock = DataBlock(
     blocks=(ImageBlock(), catblock),
     get_items=get_image_files,
@@ -25,7 +25,7 @@ dblock = DataBlock(
     item_tfms=Resize(128),
     batch_tfms=[Normalize.from_stats(*imagenet_stats)],
 )
-dls = dblock.dataloaders(data_path/"images", bs=16, drop_last=True, num_workers=0)
+dls = dblock.dataloaders(data_path, bs=16, drop_last=True, num_workers=0)
 
 # ── Modèle ───────────────────────────────────────────────────────────
 model = AAE(
