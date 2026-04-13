@@ -44,7 +44,7 @@ model_file = 'cat_dog_aae_test'
 learning_rate = learn.lr_find()
 print(f"Learning rate valley : {learning_rate.valley:.6f}")
 
-learn.fit_one_cycle(100, lr=learning_rate.valley,
+learn.fit_one_cycle(100, lr_max=learning_rate.valley,
     cbs=[
         GradientAccumulation(n_acc=16*4),          # réduit de 64 → 32
         TrackerCallback(),
