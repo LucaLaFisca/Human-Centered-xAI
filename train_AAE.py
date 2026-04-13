@@ -18,10 +18,9 @@ from utils import (UnfreezeFcCritAdaptative, label_func, GetLatentSpace,
 data_path =Path("/home/lucaBA3/Arda/Human-Centered-xAI/db_brain_tumor")
 catblock = MultiCategoryBlock(encoded=True, vocab=['tumor', 'normal'])
 dblock = DataBlock(
-    blocks=(ImageBlock(), CategoryBlock()), #blocks=(ImageBlock(), catblock)
+    blocks=(ImageBlock(), catblock), #blocks=(ImageBlock(), catblock)
     get_items=get_image_files,
     splitter=RandomSplitter(valid_pct=0.2, seed=42),
-    get_y=lambda x: label_func(x)[0] if isinstance(label_func(x), list) else label_func(x), #testpour labelsauto
     get_y=label_func,
     item_tfms=Resize(128),
     batch_tfms=[Normalize.from_stats(*imagenet_stats)],
@@ -81,21 +80,21 @@ print(f"Ze shape : {new_zi.shape}")
 #N_min        = min(len(lab_gather), len(new_zi))
 #lab_gather   = lab_gather[:N_min, 1].float().cpu()
 #category     = ['dog' if l == 1 else 'cat' for l in lab_gather.numpy()]
-# ── Labels alignés (Automatique) ──────────────────────────────────────
-# On récupère les indices des classes (0 pour normal, 1 pour tumor, etc.)
+# ── Labels alignés (Version MultiCategory) ───────────────────────────
 train_labels = torch.cat([y for _, y in dls.train], dim=0)
 valid_labels = torch.cat([y for _, y in dls.valid], dim=0)
 lab_gather   = torch.cat([train_labels, valid_labels], dim=0)
 
 N_min = min(len(lab_gather), len(new_zi))
-lab_indices = lab_gather[:N_min].cpu().numpy()
 
-# On utilise le vocabulaire réel du dataloader pour nommer les points
-# Cela affichera 'tumor' ou 'normal' automatiquement dans la légende
-vocab = dls.vocab
-category = [vocab[int(i)] for i in lab_indices]
+# 1. lab_gather est en 2D (ex: [1, 0]). Argmax le transforme en 1D (ex: 0)
+lab_indices = lab_gather[:N_min].argmax(dim=1).cpu().numpy()
 
-# On garde lab_gather pour la flèche de direction (en flottant)
+# 2. On utilise le vocabulaire de fastai pour les noms de légende
+vocab = list(dls.vocab)
+category = [vocab[i] for i in lab_indices]
+
+# 3. On redonne un format 1D propre pour la flèche rouge de l'XAI
 lab_gather = torch.tensor(lab_indices).float()
 # ── Diagnostic gaussianité ───────────────────────────────────────────
 Z_np = new_zi[:N_min].cpu().numpy()
