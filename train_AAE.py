@@ -18,7 +18,7 @@ from utils import (UnfreezeFcCritAdaptative, label_func, GetLatentSpace,
 data_path =Path("/home/lucaBA3/Arda/Human-Centered-xAI/db_brain_tumor")
 catblock = MultiCategoryBlock(encoded=True, vocab=['tumor', 'normal'])
 dblock = DataBlock(
-    blocks=(ImageBlock(), catblock),
+    blocks=(ImageBlock(), CategoryBlock()), #blocks=(ImageBlock(), catblock)
     get_items=get_image_files,
     splitter=RandomSplitter(valid_pct=0.2, seed=42),
     get_y=label_func,
@@ -74,13 +74,28 @@ torch.save(new_zi, 'espace_latent_pets.pt')
 print(f"Ze shape : {new_zi.shape}")
 
 # ── Labels alignés ───────────────────────────────────────────────────
+#train_labels = torch.cat([y for _, y in dls.train], dim=0)
+#valid_labels = torch.cat([y for _, y in dls.valid], dim=0)
+#lab_gather   = torch.cat([train_labels, valid_labels], dim=0)
+#N_min        = min(len(lab_gather), len(new_zi))
+#lab_gather   = lab_gather[:N_min, 1].float().cpu()
+#category     = ['dog' if l == 1 else 'cat' for l in lab_gather.numpy()]
+# ── Labels alignés (Automatique) ──────────────────────────────────────
+# On récupère les indices des classes (0 pour normal, 1 pour tumor, etc.)
 train_labels = torch.cat([y for _, y in dls.train], dim=0)
 valid_labels = torch.cat([y for _, y in dls.valid], dim=0)
 lab_gather   = torch.cat([train_labels, valid_labels], dim=0)
-N_min        = min(len(lab_gather), len(new_zi))
-lab_gather   = lab_gather[:N_min, 1].float().cpu()
-category     = ['dog' if l == 1 else 'cat' for l in lab_gather.numpy()]
 
+N_min = min(len(lab_gather), len(new_zi))
+lab_indices = lab_gather[:N_min].cpu().numpy()
+
+# On utilise le vocabulaire réel du dataloader pour nommer les points
+# Cela affichera 'tumor' ou 'normal' automatiquement dans la légende
+vocab = dls.vocab
+category = [vocab[int(i)] for i in lab_indices]
+
+# On garde lab_gather pour la flèche de direction (en flottant)
+lab_gather = torch.tensor(lab_indices).float()
 # ── Diagnostic gaussianité ───────────────────────────────────────────
 Z_np = new_zi[:N_min].cpu().numpy()
 print(f"\n=== Diagnostic Ze ===")
