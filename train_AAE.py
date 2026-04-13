@@ -123,7 +123,7 @@ def verifier_interpolation(learn, dls, filename="interpolation_latent.png"):
         # 2. On redimensionne exactement comme dans le model.py
         dec_in = dec_in.view(-1, 16, 1, 1)
         # On décode ces 10 étapes
-        interp_images = learn.model.decoder(interp_z).cpu().numpy()
+        interp_images = learn.model.decoder(dec_in).cpu().numpy()
 
     # Affichage
     fig, axes = plt.subplots(1, 10, figsize=(20, 2))
