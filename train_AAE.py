@@ -50,7 +50,7 @@ learn.fit_one_cycle(100, lr=learning_rate.valley,
         TrackerCallback(),
         SaveModelCallback(fname=model_file),
         EarlyStoppingCallback(min_delta=1e-4, patience=10),
-        UnfreezeFcCritAdaptative(high_threshold=0.4,low_threshold=0.08,switch_every=5),
+        UnfreezeFcCritAdaptative(high_threshold=0.4,low_threshold=0.08),
     ]
 )
 
