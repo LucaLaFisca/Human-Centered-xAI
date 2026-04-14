@@ -62,11 +62,11 @@ model.eval()
 # ── Extraire Ze via get_preds ────────────────────────────────────────
 dev = f'cuda:{torch.cuda.current_device()}' if torch.cuda.is_available() else 'cpu'
 learn.zi_valid = torch.tensor([]).to(dev)
-learn.get_preds(ds_idx=0, cbs=[GetLatentSpace()])
+_, t_train = learn.get_preds(ds_idx=0, cbs=[GetLatentSpace()])
 ze_train = learn.zi_valid.clone()
 
 learn.zi_valid = torch.tensor([]).to(dev)
-learn.get_preds(ds_idx=1, cbs=[GetLatentSpace()])
+_, t_valid = learn.get_preds(ds_idx=1, cbs=[GetLatentSpace()])
 ze_valid = learn.zi_valid.clone()
 
 new_zi = torch.vstack((ze_train, ze_valid))
