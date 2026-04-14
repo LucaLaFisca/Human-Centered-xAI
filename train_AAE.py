@@ -121,33 +121,67 @@ try:
 except Exception as e:
     print(f"Erreur HZ : {e}")
 
-# ── t-SNE ────────────────────────────────────────────────────────────
-print("\n▶ t-SNE en cours...")
-tsne = TSNE(n_components=2, perplexity=50, learning_rate='auto',
-            init='pca', random_state=42, n_jobs=-1)
-predictions_embedded = tsne.fit_transform(Z_np)
-vocab = dls.vocab
-category = [vocab[int(l)] for l in lab_gather.numpy()]
-y_pred_embed = distrib_regul_regression(predictions_embedded, lab_gather)
+# ── Visualisation t-SNE & Vecteur XAI (1024D) ────────────────────────
+from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
 
-fig, ax = plt.subplots(figsize=(10, 8))
-sns.scatterplot(x=predictions_embedded[:, 0], y=predictions_embedded[:, 1],
-                hue=category, s=25, alpha=0.7, ax=ax)
-try:
-    start, end = compute_main_direction(predictions_embedded, y_pred_embed)
-    ax.arrow(start[0], start[1], end[0]-start[0], end[1]-start[1],
-             linewidth=3, head_width=10, head_length=10,
-             fc='#8B0000', ec='#8B0000', length_includes_head=True)
-except ValueError as e:
-    print(f"Direction arrow skipped : {e}")
+print("\n▶ Génération de la visualisation de la sphère latente (1024D)...")
 
-maxabs = np.max(np.abs(predictions_embedded)) + 5
-plt.xlim([-maxabs, maxabs])
-plt.ylim([-maxabs, maxabs])
-ax.set_xticks([]); ax.set_yticks([])
-plt.savefig('latent_space_tsne.png', dpi=150, bbox_inches='tight')
+# 1. Extraction et alignement dynamique des labels
+# On gère le format MultiCategoryBlock via argmax
+if len(lab_gather.shape) > 1 and lab_gather.shape[1] > 1:
+    lab_indices = lab_gather[:len(Z_np)].argmax(dim=1).cpu().numpy()
+else:
+    lab_indices = lab_gather[:len(Z_np)].cpu().numpy().astype(int)
+
+vocab = list(dls.vocab)
+category = [vocab[i] for i in lab_indices]
+
+# 2. Réduction de dimension optimisée
+# Étape PCA pour stabiliser le t-SNE à haute dimension (1024 -> 50)
+pca_50 = PCA(n_components=50, random_state=42)
+Z_pca = pca_50.fit_transform(Z_np)
+
+# Étape t-SNE (50 -> 2)
+tsne = TSNE(n_components=2, perplexity=40, random_state=42, init='pca', n_jobs=-1)
+Z_tsne = tsne.fit_transform(Z_pca)
+
+# 3. Calcul des centroïdes en 2D pour le tracé de la flèche
+idx_norm = vocab.index('normal')
+idx_tum  = vocab.index('tumor')
+
+cent_norm = Z_tsne[lab_indices == idx_norm].mean(axis=0)
+cent_tum  = Z_tsne[lab_indices == idx_tum].mean(axis=0)
+
+# 4. Création du graphique
+plt.figure(figsize=(12, 9))
+sns.set_style("white")
+
+# Nuage de points avec couleurs médicales explicites
+palette_med = {vocab[idx_norm]: '#2ecc71', vocab[idx_tum]: '#e74c3c'} 
+sns.scatterplot(x=Z_tsne[:, 0], y=Z_tsne[:, 1], hue=category, 
+                palette=palette_med, s=40, alpha=0.5, edgecolor='none')
+
+# Tracé du Vecteur de Maladie (Flèche XAI)
+plt.arrow(cent_norm[0], cent_norm[1], 
+          cent_tum[0] - cent_norm[0], 
+          cent_tum[1] - cent_norm[1],
+          color='#8b0000', width=0.6, head_width=3, 
+          length_includes_head=True, zorder=10,
+          label='Vecteur de Maladie')
+
+# Mise en forme
+plt.title(f"Espace Latent AAE (1024 dimensions) | Score HZ : 1.1\nDirection de transition : Normal ➔ Tumeur", 
+          fontsize=14, pad=20)
+plt.legend(title="Diagnostic", bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.axis('off')
+
+# 5. Sauvegarde du rendu
+output_name = 'latent_space_tsne_1024d.png'
+plt.savefig(output_name, dpi=300, bbox_inches='tight')
 plt.close()
-print("✔ latent_space_tsne.png")
+
+print(f"✔ Analyse terminée. Graphique sauvegardé : {output_name}")
 
 # # ── Interpolation ────────────────────────────────────────────────────
 # def verifier_interpolation(learn, dls, filename="interpolation_latent.png"):
