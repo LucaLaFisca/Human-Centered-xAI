@@ -31,7 +31,7 @@ dls = dblock.dataloaders(data_path, bs=16, drop_last=True, num_workers=0)
 model = AAE(
     input_size=128,
     input_channels=3,
-    encoding_dims=128,
+    encoding_dims=1024,
     classes=2,
 )
 
@@ -149,27 +149,27 @@ plt.savefig('latent_space_tsne.png', dpi=150, bbox_inches='tight')
 plt.close()
 print("✔ latent_space_tsne.png")
 
-# ── Interpolation ────────────────────────────────────────────────────
-def verifier_interpolation(learn, dls, filename="interpolation_latent.png"):
-    learn.model.eval()
-    xb, yb = dls.one_batch()
-    with torch.no_grad():
-        _ = learn.model(xb)
-        z  = learn.model.zi
-        z1, z2 = z[0], z[1]
-        alpha      = torch.linspace(0, 1, 10).to(z.device)
-        interp_z   = torch.stack([(1-a)*z1 + a*z2 for a in alpha])
-        dec_in     = learn.model.decoder_fc(interp_z)
-        dec_in     = dec_in.view(-1, dec_in.size(1), 1, 1)  # corrigé
-        interp_imgs = learn.model.decoder(dec_in).cpu().numpy()
+# # ── Interpolation ────────────────────────────────────────────────────
+# def verifier_interpolation(learn, dls, filename="interpolation_latent.png"):
+#     learn.model.eval()
+#     xb, yb = dls.one_batch()
+#     with torch.no_grad():
+#         _ = learn.model(xb)
+#         z  = learn.model.zi
+#         z1, z2 = z[0], z[1]
+#         alpha      = torch.linspace(0, 1, 10).to(z.device)
+#         interp_z   = torch.stack([(1-a)*z1 + a*z2 for a in alpha])
+#         dec_in     = learn.model.decoder_fc(interp_z)
+#         dec_in     = dec_in.view(-1, dec_in.size(1), 1, 1)  # corrigé
+#         interp_imgs = learn.model.decoder(dec_in).cpu().numpy()
 
-    fig, axes = plt.subplots(1, 10, figsize=(20, 2))
-    for i in range(10):
-        img = np.transpose(interp_imgs[i], (1, 2, 0))
-        axes[i].imshow(np.clip((img * 0.5) + 0.5, 0, 1))
-        axes[i].axis('off')
-    plt.savefig(filename, dpi=120, bbox_inches='tight')
-    plt.close()
-    print(f"✔ {filename}")
+#     fig, axes = plt.subplots(1, 10, figsize=(20, 2))
+#     for i in range(10):
+#         img = np.transpose(interp_imgs[i], (1, 2, 0))
+#         axes[i].imshow(np.clip((img * 0.5) + 0.5, 0, 1))
+#         axes[i].axis('off')
+#     plt.savefig(filename, dpi=120, bbox_inches='tight')
+#     plt.close()
+#     print(f"✔ {filename}")
 
-verifier_interpolation(learn, dls)
+# verifier_interpolation(learn, dls)
