@@ -73,29 +73,22 @@ new_zi = torch.vstack((ze_train, ze_valid))
 torch.save(new_zi, 'espace_latent_pets.pt')
 print(f"Ze shape : {new_zi.shape}")
 
-# ── Labels alignés ───────────────────────────────────────────────────
-#train_labels = torch.cat([y for _, y in dls.train], dim=0)
-#valid_labels = torch.cat([y for _, y in dls.valid], dim=0)
-#lab_gather   = torch.cat([train_labels, valid_labels], dim=0)
-#N_min        = min(len(lab_gather), len(new_zi))
-#lab_gather   = lab_gather[:N_min, 1].float().cpu()
-#category     = ['dog' if l == 1 else 'cat' for l in lab_gather.numpy()]
-# ── Labels alignés (Version MultiCategory) ───────────────────────────
-train_labels = torch.cat([y for _, y in dls.train], dim=0)
-valid_labels = torch.cat([y for _, y in dls.valid], dim=0)
-lab_gather   = torch.cat([train_labels, valid_labels], dim=0)
+# ── Alignement dynamique des labels ──────────────────────────────────
+# On rassemble les vraies étiquettes vues par le modèle
+lab_gather = torch.cat([t_train, t_valid], dim=0)
 
-N_min = min(len(lab_gather), len(new_zi))
+# Décodage (gère le MultiCategory automatiquement)
+if len(lab_gather.shape) > 1 and lab_gather.shape[1] > 1:
+    lab_indices = lab_gather.argmax(dim=1).cpu().numpy()
+else:
+    lab_indices = lab_gather.cpu().numpy().astype(int)
 
-# 1. lab_gather est en 2D (ex: [1, 0]). Argmax le transforme en 1D (ex: 0)
-lab_indices = lab_gather[:N_min].argmax(dim=1).cpu().numpy()
-
-# 2. On utilise le vocabulaire de fastai pour les noms de légende
 vocab = list(dls.vocab)
 category = [vocab[i] for i in lab_indices]
 
-# 3. On redonne un format 1D propre pour la flèche rouge de l'XAI
-lab_gather = torch.tensor(lab_indices).float()
+# NOUVEAU : Diagnostic de sécurité dans le terminal
+labels_uniques, comptes = np.unique(category, return_counts=True)
+print(f"Répartition des classes pour le graphique : {dict(zip(labels_uniques, comptes))}")
 # ── Diagnostic gaussianité ───────────────────────────────────────────
 Z_np = new_zi[:N_min].cpu().numpy()
 print(f"\n=== Diagnostic Ze ===")
