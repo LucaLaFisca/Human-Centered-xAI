@@ -96,7 +96,7 @@ class AAE(nn.Module):
         #                 -1, features.size(1) * features.size(2) * features.size(3)
         #             )
         #         )))
-        # Test self.zi avec batch norm et sansleaky relu
+        # Test self.zi avec batch norm et sans leaky relu
         self.zi = self.bn_lin(self.encoder_fc(
             features.view(
                 -1, features.size(1) * features.size(2) * features.size(3)
@@ -180,7 +180,7 @@ class AAE(nn.Module):
             self.adv_loss = adversarial_loss(self.gan_fake, valid)
             self.crit_loss = 0
             # self.classif_loss = self.classif_loss_func(self.pred, classif_target)
-            # loss = 0.1 * self.adv_loss + 0.9 * self.recons_loss + self.classif_loss
+            #loss = 0.2 * self.adv_loss + 0.8 * self.recons_loss + self.classif_loss
         else: #discriminator loss
             # Measure discriminator's ability to classify real from generated samples
             valid = torch.ones_like(self.gan_real, requires_grad=False).detach()
@@ -196,7 +196,7 @@ class AAE(nn.Module):
         self.classif_loss = bce(output, target)
 
         # loss = self.adv_loss + .1*self.recons_loss + .4*self.classif_loss
-        loss = self.adv_loss + .05*self.recons_loss #changed self.recons from 0.1 to 0.05
+        loss = 0.7*self.adv_loss + .3*self.recons_loss #changed self.recons from 0.1 to 0.05
 
         # print(f'Losses: {loss.shape, self.kld_loss.shape, self.recons_loss.shape, self.classif_loss.shape}')
             
