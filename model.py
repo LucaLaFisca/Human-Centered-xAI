@@ -196,7 +196,7 @@ class AAE(nn.Module):
         self.classif_loss = bce(output, target)
 
         # loss = self.adv_loss + .1*self.recons_loss + .4*self.classif_loss
-        loss = 0.1*self.adv_loss + .9*self.recons_loss #changed self.recons from 0.1 to 0.05
+        loss = 0.05*self.adv_loss + .95*self.recons_loss #changed self.recons from 0.1 to 0.05
 
         # print(f'Losses: {loss.shape, self.kld_loss.shape, self.recons_loss.shape, self.classif_loss.shape}')
             
