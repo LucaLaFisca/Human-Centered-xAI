@@ -31,7 +31,7 @@ dls = dblock.dataloaders(data_path, bs=128, drop_last=True, num_workers=0)#chang
 model = AAE(
     input_size=128,
     input_channels=3,
-    encoding_dims=512,
+    encoding_dims=1024,
     classes=2,
 )
 
