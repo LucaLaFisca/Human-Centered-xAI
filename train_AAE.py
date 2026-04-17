@@ -25,7 +25,7 @@ dblock = DataBlock(
     item_tfms=Resize(128),
     batch_tfms=[Normalize.from_stats(*imagenet_stats)],
 )
-dls = dblock.dataloaders(data_path, bs=64, drop_last=True, num_workers=0)#changed BS to 64
+dls = dblock.dataloaders(data_path, bs=128, drop_last=True, num_workers=0)#changed BS to 128
 
 # ── Modèle ───────────────────────────────────────────────────────────
 model = AAE(
@@ -46,7 +46,7 @@ print(f"Learning rate valley : {learning_rate.valley:.6f}")
 
 learn.fit_flat_cos(100, lr=5e-4, pct_start=0.72,
     cbs=[
-        GradientAccumulation(n_acc=64*2),          # réduit de 64 → 32
+        GradientAccumulation(n_acc=128*2),          # réduit de 12864 → 32
         TrackerCallback(),
         SaveModelCallback(fname=model_file),
         EarlyStoppingCallback(min_delta=1e-4, patience=10),
