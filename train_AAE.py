@@ -50,7 +50,7 @@ learn.fit_flat_cos(100, lr=5e-4, pct_start=0.72,
         TrackerCallback(),
         SaveModelCallback(fname=model_file),
         EarlyStoppingCallback(min_delta=1e-4, patience=10),
-        UnfreezeFcCritAdaptative(high_threshold=0.4,low_threshold=0.08),
+        UnfreezeFcCritAdaptative(high_threshold=0.75,low_threshold=0.5),
     ]
 )
 
