@@ -38,7 +38,7 @@ model = AAE(
 # ── Entraînement AAE ─────────────────────────────────────────────────
 metrics = [LossAttrMetric("adv_loss"), LossAttrMetric("recons_loss"),
            LossAttrMetric("crit_loss"), accuracy_multi]
-learn = Learner(dls, model, loss_func=model.aae_loss_func, metrics=metrics)
+learn = Learner(dls, model, loss_func=model.aae_loss_func)
 
 model_file = 'cat_dog_aae_test'
 learning_rate = learn.lr_find()
