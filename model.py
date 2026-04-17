@@ -200,11 +200,11 @@ class AAE(nn.Module):
 
         # print(f'Losses: {loss.shape, self.kld_loss.shape, self.recons_loss.shape, self.classif_loss.shape}')
             
-        if self.count_acc % 2 == 0:
-            self.gen_train = False
-        else:
-            self.gen_train = True
-        self.count_acc += 1
+        # if self.count_acc % 2 == 0:
+        #     self.gen_train = False
+        # else:
+        #     self.gen_train = True
+        # self.count_acc += 1
         # print(f'count_acc: {self.count_acc, self.gen_train}')
             
         return loss
