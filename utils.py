@@ -81,15 +81,15 @@ class UnfreezeFcCritAdaptative(Callback):
         
         # Limit the number of consecutive epoch while training Generator
         if self.gen_train_epochs >= 3:
-            print("train discriminator (too many generator epochs, avg_valid_loss={:.4f})".format(avg_valid_loss))
-            self.learn.model.gen_train = False
+            print("train Generator (too many generator epochs, avg_valid_loss={:.4f})".format(avg_valid_loss))
+            self.learn.model.gen_train = True
             for name, param in self.learn.model.named_parameters():
                 if "fc_crit" in name:
-                    param.requires_grad_(True)
+                    param.requires_grad_(False)
                     param.lr_mult = 1.0
                 else:
-                    param.requires_grad_(False)
-            self.gen_train_epochs = 0
+                    param.requires_grad_(True)
+            self.gen_train_epochs += 1 #avant était =0
         
 
 class FreezeDiscriminator(Callback):
