@@ -38,7 +38,7 @@ model = AAE(
 # ── Entraînement AAE ─────────────────────────────────────────────────
 metrics = [LossAttrMetric("adv_loss"), LossAttrMetric("recons_loss"),
            LossAttrMetric("crit_loss"), accuracy_multi]
-learn = Learner(dls, model, loss_func=model.aae_loss_func)
+learn = Learner(dls, model, loss_func=model.aae_loss_func) # metrics=metrics removed
 
 model_file = 'cat_dog_aae_test'
 learning_rate = learn.lr_find()
@@ -49,7 +49,7 @@ learn.fit_flat_cos(100, lr=5e-4, pct_start=0.72,
         GradientAccumulation(n_acc=128*2),          # réduit de 12864 → 32
         TrackerCallback(),
         SaveModelCallback(fname=model_file),
-        EarlyStoppingCallback(min_delta=1e-4, patience=10),
+        EarlyStoppingCallback(min_delta=1e-4, patience=2),
         UnfreezeFcCritAdaptative(high_threshold=0.75,low_threshold=0.5),
     ]
 )
