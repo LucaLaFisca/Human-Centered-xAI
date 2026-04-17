@@ -3,10 +3,17 @@ import torch.nn as nn
 import torch.nn.functional as F
 from fastai.vision.all import *
 from fastai.data.all import *
+from pytorch_msssim import ms_ssim
 
-# dev = 'cuda:3'
-# torch.cuda.set_device(dev)
-dev = torch.cuda.current_device()
+if torch.cuda.is_available():
+    # Sur le serveur (tu peux préciser "cuda:3" si tu veux un GPU spécifique)
+    dev = torch.device("cuda") 
+elif torch.backends.mps.is_available():
+    # Sur ton Mac (Apple Silicon M1/M2/M3...)
+    dev = torch.device("mps")
+else:
+    # Par défaut (si ni GPU Nvidia ni puce Apple)
+    dev = torch.device("cpu")
 
 
 class AAE(nn.Module):
@@ -15,7 +22,7 @@ class AAE(nn.Module):
         input_size,
         input_channels,
         encoding_dims=128,
-        step_channels=16,
+        step_channels=16, 
         nonlinearity=nn.LeakyReLU(0.2),
         classes=2,
         gen_train=True
@@ -61,21 +68,35 @@ class AAE(nn.Module):
         self.encoder_fc = nn.Linear(
             channels, encoding_dims
         )  # Can add a Tanh nonlinearity if training is unstable as noise prior is Gaussian
-        self.decoder_fc = nn.Linear(encoding_dims, step_channels)
+        self.decoder_fc = nn.Linear(encoding_dims, 512)
+        # --- NOUVEAU DÉCODEUR (Structure optimisée) ---
+        decoder_channels = [512, 256, 128, 64]
+        scales           = [4,   4,   4,   4]  # <-- CORRECTION ICI
+
         decoder = []
-        size = 1
-        channels = step_channels
-        while size < input_size // 2:
-            decoder.append(
-                nn.Sequential(
-                    nn.ConvTranspose2d(channels, channels * 4, 5, 4, 2, 3),
-                    nn.BatchNorm2d(channels * 4),
-                    nonlinearity,
-                )
+        in_ch = 512  # Doit correspondre à la sortie de self.decoder_fc
+        
+        for out_ch, scale in zip(decoder_channels, scales):
+            decoder.append(nn.Sequential(
+                nn.Upsample(scale_factor=scale, mode='bilinear', align_corners=False),
+                nn.Conv2d(in_ch, out_ch, kernel_size=3, padding=1),
+                nn.BatchNorm2d(out_ch),
+                nonlinearity,
+                nn.Conv2d(out_ch, out_ch, kernel_size=3, padding=1),  # La double conv pour bien lisser
+                nn.BatchNorm2d(out_ch),
+                nonlinearity,
+            ))
+            in_ch = out_ch
+
+        # La couche finale (ATTENTION : SANS Tanh !)
+        # J'ai remis un kernel_size=3, c'est généralement plus joli pour les images qu'un kernel_size=1
+        decoder.append(
+            nn.Sequential(  # <-- CORRECTION ICI
+                nn.Conv2d(64, input_channels, kernel_size=3, padding=1),
+                nn.Sigmoid()
             )
-            channels *= 4
-            size *= 4
-        decoder.append(nn.ConvTranspose2d(channels, input_channels, 5, 2, 2, 1))
+        )
+        
         self.decoder = nn.Sequential(*decoder)
 
 
@@ -85,20 +106,45 @@ class AAE(nn.Module):
         x = F.leaky_relu(self.bn_crit2(self.fc_crit2(x)),  negative_slope=0.2)
         x = torch.sigmoid(self.fc_crit3(x))  # (batch_size, 1)
         return x
+    
+    def denoising_ae_loss_func(self, clean_xb, pred, yb):
+        """
+        clean_xb : image originale propre (target de reconstruction) [0, 1]
+        pred     : labels de classification (sortie du forward)
+        yb       : labels de classification réels
+        """
+        # Poids de la perte hybride (démontré optimal dans la littérature)
+        alpha = 0.84
+        
+        # 1. Perte L1 : Maintient la colorimétrie (évite les décalages spectraux de la SSIM seule)
+        l1_loss = F.l1_loss(self.decoder_output, clean_xb)
+        
+        # 2. Perte MS-SSIM : Force la reconstruction des structures et textures
+        # data_range=1.0 est désormais correct car clean_xb et decoder_output sont dans [0, 1]
+        ms_ssim_val = ms_ssim(self.decoder_output, clean_xb, data_range=1.0, size_average=True)
+        msssim_loss = 1.0 - ms_ssim_val
+        
+        # 3. Combinaison
+        self.recons_loss = alpha * msssim_loss + (1.0 - alpha) * l1_loss
+        
+        return self.recons_loss 
 
     def forward(self, x):
         """Sequentially pass `x` trough model`s encoder, decoder and heads"""
         self.input_image = x
 
         features = self.encoder(x) # modifier relu en leaky_relu
-        self.zi = F.leaky_relu(self.bn_lin(self.encoder_fc(
-                    features.view(
-                        -1, features.size(1) * features.size(2) * features.size(3)
-                    )
-                )))
+        self.zi = F.leaky_relu(self.bn_lin(self.encoder_fc(features.view(-1, features.size(1) * features.size(2) * features.size(3)))), negative_slope=0.2)
 
-        x = self.decoder_fc(self.zi)
-        self.decoder_output = self.decoder(x.view(-1, x.size(1), 1, 1))
+        # 2. Décodage
+        z = self.decoder_fc(self.zi)      # Résultat plat : (Batch_size, 512)
+        
+        # ---> L'ÉTAPE MAGIQUE <---
+        # On plie le vecteur plat en une image 1x1 : (Batch_size, 512, 1, 1)
+        z_spatial = z.view(z.size(0), 512, 1, 1) 
+        
+        # On envoie dans le décodeur convolutif
+        self.decoder_output = self.decoder(z_spatial)
 
         self.gan_fake = self.latent_gan(self.zi)
         z = torch.randn_like(self.zi)
