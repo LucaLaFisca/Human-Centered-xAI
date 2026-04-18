@@ -18,7 +18,7 @@ from utils import (UnfreezeFcCritAdaptative, label_func, GetLatentSpace,
 data_path =Path("/home/lucaBA3/Arda/Human-Centered-xAI/db_brain_tumor")
 catblock = MultiCategoryBlock(encoded=True, vocab=['tumor', 'normal'])
 dblock = DataBlock(
-    blocks=(ImageBlock(cls=PILImageBW), catblock), #blocks=(ImageBlock(cls=PILImageBW) pour mettre les images en noir et blanc
+    blocks=(ImageBlock(PILImageBW), catblock), #blocks=(ImageBlock(cls=PILImageBW) pour mettre les images en noir et blanc
     get_items=get_image_files,
     splitter=RandomSplitter(valid_pct=0.2, seed=42),
     get_y=label_func,
