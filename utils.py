@@ -27,14 +27,14 @@ class UnfreezeFcCritAdaptative(Callback):
 
         # Decide to train Generator or Discriminator
         if self.epoch < 3:  
-            print("train Generator (initial phase)") # on décide de commencer par le generateur
-            self.learn.model.gen_train = True
+            print("train Discriminator (initial phase)") # on décide de commencer par le discriminateur
+            self.learn.model.gen_train = False
             for name, param in self.learn.model.named_parameters():
                 if "fc_crit" in name:
-                    param.requires_grad_(False)
-                else:
                     param.requires_grad_(True)
-            self.gen_train_epochs += 1
+                else:
+                    param.requires_grad_(False)
+            self.gen_train_epochs = 0
         else:
             if avg_valid_loss < self.low_threshold:  # Generator is too strong
                 print("train discriminator (generator too strong, avg_valid_loss={:.4f})".format(avg_valid_loss))
