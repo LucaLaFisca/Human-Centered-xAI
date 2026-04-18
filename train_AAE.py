@@ -9,6 +9,11 @@ import pingouin as pg
 from sklearn.manifold import TSNE
 from scipy import stats
 
+#test pour changer reglage flat cos
+from functools import partial
+from fastai.optimizer import Adam
+
+
 from model import AAE
 from utils import (UnfreezeFcCritAdaptative, label_func, GetLatentSpace,
                    LossAttrMetric, distrib_regul_regression, compute_main_direction)
@@ -39,7 +44,7 @@ model = AAE(
 # ── Entraînement AAE ─────────────────────────────────────────────────
 metrics = [LossAttrMetric("adv_loss"), LossAttrMetric("recons_loss"),
            LossAttrMetric("crit_loss"), accuracy_multi]
-learn = Learner(dls, model, loss_func=model.aae_loss_func) # metrics=metrics removed
+learn = Learner(dls, model, loss_func=model.aae_loss_func,opt_func=partial(Adam, mom=0.5, sqr_mom=0.999)) # metrics=metrics removed and added opt_func to use
 
 model_file = 'cat_dog_aae_test'
 learning_rate = learn.lr_find()
