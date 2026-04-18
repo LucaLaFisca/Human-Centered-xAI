@@ -18,7 +18,7 @@ from utils import (UnfreezeFcCritAdaptative, label_func, GetLatentSpace,
 data_path =Path("/home/lucaBA3/Arda/Human-Centered-xAI/db_brain_tumor")
 catblock = MultiCategoryBlock(encoded=True, vocab=['tumor', 'normal'])
 dblock = DataBlock(
-    blocks=(ImageBlock(), catblock), #blocks=(ImageBlock(), catblock)
+    blocks=(ImageBlock(cls=PILImageBW), catblock), #blocks=(ImageBlock(cls=PILImageBW) pour mettre les images en noir et blanc
     get_items=get_image_files,
     splitter=RandomSplitter(valid_pct=0.2, seed=42),
     get_y=label_func,
@@ -30,7 +30,7 @@ dls = dblock.dataloaders(data_path, bs=128, drop_last=True, num_workers=0)#chang
 # ── Modèle ───────────────────────────────────────────────────────────
 model = AAE(
     input_size=128,
-    input_channels=3,
+    input_channels=1, #onchange l'input a 1 car on a mis les images en noir et blanc
     encoding_dims=1024,
     classes=2,
 )
