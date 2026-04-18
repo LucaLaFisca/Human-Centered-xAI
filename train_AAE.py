@@ -23,7 +23,8 @@ dblock = DataBlock(
     splitter=RandomSplitter(valid_pct=0.2, seed=42),
     get_y=label_func,
     item_tfms=Resize(128),
-    batch_tfms=[Normalize.from_stats(*imagenet_stats)],
+    #batch_tfms=[Normalize.from_stats(*imagenet_stats)], 
+    #removed batch tfms car ca bloquer pour les canaux 
 )
 dls = dblock.dataloaders(data_path, bs=128, drop_last=True, num_workers=0)#changed BS to 128
 
