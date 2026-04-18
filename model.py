@@ -137,7 +137,7 @@ class AAE(nn.Module):
         
         # ---> L'ÉTAPE MAGIQUE <---
         # On plie le vecteur plat en une image 1x1 : (Batch_size, 512, 1, 1)
-        z_spatial = z.view(z.size(0), 512, 1, 1) 
+        z_spatial = z.view(z.size(0), -1, 1, 1) # 4096 = channels finaux de l'encodeur pour input_size=256
         
         # On envoie dans le décodeur convolutif
         self.decoder_output = self.decoder(z_spatial)
