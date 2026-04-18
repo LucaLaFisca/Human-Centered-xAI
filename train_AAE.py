@@ -44,7 +44,7 @@ model_file = 'cat_dog_aae_test'
 learning_rate = learn.lr_find()
 print(f"Learning rate valley : {learning_rate.valley:.6f}")
 
-learn.fit_flat_cos(100, lr=4e-4, pct_start=0.72,
+learn.fit_flat_cos(100, lr=1e-4, pct_start=0.72,
     cbs=[
         GradientAccumulation(n_acc=128*2),          # Bs=128 n=4
         TrackerCallback(),
