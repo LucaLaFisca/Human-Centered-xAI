@@ -67,35 +67,31 @@ class AAE(nn.Module):
         self.encoder = nn.Sequential(*encoder)
         self.encoder_fc = nn.Linear(
             channels, encoding_dims
-        )  # Can add a Tanh nonlinearity if training is unstable as noise prior is Gaussian
-        self.decoder_fc = nn.Linear(encoding_dims, 512)
+        ) 
+        # Channels correspond à 4096 pour input_size=256
+
+        self.decoder_fc = nn.Linear(encoding_dims, channels)
         # --- NOUVEAU DÉCODEUR (Structure optimisée) ---
-        decoder_channels = [512, 256, 128, 64]
-        scales           = [4,   4,   4,   4]  # <-- CORRECTION ICI
+        decoder_channels = [channels//4, channels//16, channels//64, channels//256] # 4 couches comme à l'encodeur 
+        scale = 4
 
         decoder = []
-        in_ch = 512  # Doit correspondre à la sortie de self.decoder_fc
+        in_ch = channels # Doit correspondre à la sortie de self.decoder_fc
         
-        for out_ch, scale in zip(decoder_channels, scales):
+        for out_ch in decoder_channels:
             decoder.append(nn.Sequential(
                 nn.Upsample(scale_factor=scale, mode='bilinear', align_corners=False),
-                nn.Conv2d(in_ch, out_ch, kernel_size=3, padding=1),
+                nn.Conv2d(in_ch, out_ch, kernel_size=5, padding=2), # Ton choix de symétrie
                 nn.BatchNorm2d(out_ch),
-                nonlinearity,
-                nn.Conv2d(out_ch, out_ch, kernel_size=3, padding=1),  # La double conv pour bien lisser
-                nn.BatchNorm2d(out_ch),
-                nonlinearity,
+                nonlinearity
             ))
-            in_ch = out_ch
-
-        # La couche finale (ATTENTION : SANS Tanh !)
-        # J'ai remis un kernel_size=3, c'est généralement plus joli pour les images qu'un kernel_size=1
-        decoder.append(
-            nn.Sequential(  # <-- CORRECTION ICI
-                nn.Conv2d(64, input_channels, kernel_size=3, padding=1),
-                nn.Sigmoid()
-            )
-        )
+        in_ch = out_ch
+        # --- LA COUCHE FINALE DE RESTITUTION ---
+        # in_ch vaut ici 16. input_channels vaut 1.
+        decoder.append(nn.Sequential(
+            nn.Conv2d(in_ch, input_channels, kernel_size=5, padding=2),
+            nn.Sigmoid()
+        ))
         
         self.decoder = nn.Sequential(*decoder)
 
