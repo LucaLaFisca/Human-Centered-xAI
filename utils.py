@@ -144,11 +144,9 @@ class LossAttrMetric(Metric):
 def label_func(f): 
     name = f.name #on veut accéder aux noms uniquement
     if name[0].isupper(): #on veut tester la première lettre uniquement donc on applique "isupper" au premier élément de name (name[0])
-        lab = torch.tensor([1, 0], dtype=torch.float32)
+        return 'cat'
     else:
-        lab = torch.tensor([0, 1], dtype=torch.float32)
-    return lab
-
+        return 'dog'
 
 # Compute the regularized linear regression of the latent space wrt the labels
 def distrib_regul_regression(z, target, nbins: int=100, get_reg: bool=False):
