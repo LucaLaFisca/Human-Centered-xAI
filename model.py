@@ -85,7 +85,7 @@ class AAE(nn.Module):
                 nn.BatchNorm2d(out_ch),
                 nonlinearity
             ))
-        in_ch = out_ch
+            in_ch = out_ch
         # --- LA COUCHE FINALE DE RESTITUTION ---
         # in_ch vaut ici 16. input_channels vaut 1.
         decoder.append(nn.Sequential(
@@ -116,7 +116,6 @@ class AAE(nn.Module):
         l1_loss = F.l1_loss(self.decoder_output, clean_xb)
         
         # 2. Perte MS-SSIM : Force la reconstruction des structures et textures
-        # data_range=1.0 est désormais correct car clean_xb et decoder_output sont dans [0, 1]
         ms_ssim_val = ms_ssim(self.decoder_output, clean_xb, data_range=1.0, size_average=True)
         msssim_loss = 1.0 - ms_ssim_val
         
@@ -129,14 +128,11 @@ class AAE(nn.Module):
         """Sequentially pass `x` trough model`s encoder, decoder and heads"""
         self.input_image = x
 
-        features = self.encoder(x) # modifier relu en leaky_relu
+        features = self.encoder(x) 
         self.zi = F.leaky_relu(self.bn_lin(self.encoder_fc(features.view(-1, features.size(1) * features.size(2) * features.size(3)))), negative_slope=0.2)
 
-        # 2. Décodage
-        z = self.decoder_fc(self.zi)      # Résultat plat : (Batch_size, 512)
+        z = self.decoder_fc(self.zi)     
         
-        # ---> L'ÉTAPE MAGIQUE <---
-        # On plie le vecteur plat en une image 1x1 : (Batch_size, 512, 1, 1)
         z_spatial = z.view(z.size(0), -1, 1, 1) # 4096 = channels finaux de l'encodeur pour input_size=256
         
         # On envoie dans le décodeur convolutif
@@ -162,6 +158,16 @@ class AAE(nn.Module):
         classif_loss = bce(output, target)
             
         return self.recons_loss + .001*classif_loss
+    
+    def pure_classif_loss_func(self, output, target, **kwargs):
+        """
+        Fonction de perte pour classification à 2 classes.
+        Accepte **kwargs pour supporter l'argument 'reduction' envoyé par Fastai 
+        lors de l'interprétation.
+        """
+        # F.cross_entropy fait exactement la même chose que nn.CrossEntropyLoss,
+        # mais sous forme de fonction, ce qui permet de lui passer facilement les kwargs.
+        return F.cross_entropy(output, target, **kwargs)
 
     def classif_loss_func(self, output, target):
         delta = .5
