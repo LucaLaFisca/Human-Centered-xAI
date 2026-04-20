@@ -83,7 +83,7 @@ def celeba_splitter(items):
 align_resize = Resize(256, method=ResizeMethod.Pad, pad_mode=PadMode.Zeros)
 
 dblock = DataBlock(
-    blocks=(ImageBlock, ImageBlock), 
+    blocks=(ImageBlock,CategoryBlock), #changed blocks=(ImageBlock, ImageBlock)
     get_items=get_image_files,
    #get_y=lambda x: x,
     get_y=label_func,
