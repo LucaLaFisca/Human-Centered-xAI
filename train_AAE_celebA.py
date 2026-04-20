@@ -12,7 +12,7 @@ import random
 #test pour changer reglage flat cos
 from functools import partial
 from fastai.optimizer import Adam
-
+import datetime
 
 from model import AAE
 from utils import (UnfreezeFcCritAdaptative, label_func, GetLatentSpace,
@@ -36,10 +36,10 @@ ENCODING_DIM = 256
 PATIENCE = 5
 TARGET_ATTRIBUTE = 'Male' # L'attribut CelebA que tu souhaites classifier
 
-timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-RUN_NAME = f"celeba_classifier_{timestamp}"
-OUT_DIR = Path(f"results/{RUN_NAME}")
-OUT_DIR.mkdir(parents=True, exist_ok=True)
+# timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+# RUN_NAME = f"celeba_classifier_{timestamp}"
+# OUT_DIR = Path(f"results/{RUN_NAME}")
+# OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
 
