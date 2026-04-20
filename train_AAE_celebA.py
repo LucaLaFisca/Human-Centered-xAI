@@ -13,7 +13,7 @@ import random
 from functools import partial
 from fastai.optimizer import Adam
 import datetime
-
+from pathlib import Path
 from model import AAE
 from utils import (UnfreezeFcCritAdaptative, label_func, GetLatentSpace,
                    LossAttrMetric, distrib_regul_regression, compute_main_direction)
