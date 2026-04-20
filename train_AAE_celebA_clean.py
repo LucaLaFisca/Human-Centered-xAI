@@ -3,8 +3,7 @@ from fastai.vision.all import *
 from fastai.data.all import *
 import numpy as np
 import pingouin as pg
-from sklearn.manifold import TSNE
-from scipy import stats
+
 import random
 from model import AAE
 from utils import (UnfreezeFcCritAdaptative, label_func, GetLatentSpace,
@@ -56,13 +55,35 @@ def celeba_splitter(items):
 
 # 3. L'intégrer dans le DataBlock
 align_resize = Resize(256, method=ResizeMethod.Pad, pad_mode=PadMode.Zeros)
+# ==============================================================================
+# CHARGEMENT DES ATTRIBUTS (Pour les labels)
+# ==============================================================================
+# 1. Le chemin vers le fichier des attributs (vérifie Arda vs Amine)
+attr_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_attr_celeba.txt'
+TARGET_ATTRIBUTE = "Male" # Remplace par l'attribut que tu cibles
 
+# 2. Lecture du fichier texte avec Pandas
+df_attr = pd.read_csv(attr_file, sep=r'\s+', header=1, index_col=0)
+
+# 3. Création du fameux attr_dict
+attr_dict = {
+    img_name: f"Not {TARGET_ATTRIBUTE}" if val == -1 else TARGET_ATTRIBUTE 
+    for img_name, val in zip(df_attr.index, df_attr[TARGET_ATTRIBUTE])
+}
+
+# 4. La fonction locale qui utilise attr_dict (à mettre juste en dessous)
+def get_celeba_label(x):
+    # Récupère le texte simple et le met dans une liste pour MultiCategoryBlock
+    label = attr_dict.get(x.name)
+    return [label]
+
+# Partie datablock
 dblock = DataBlock(
     blocks=(ImageBlock,MultiCategoryBlock), #changed blocks=(ImageBlock, ImageBlock)
     get_items=get_image_files,
     #get_y=lambda x: x,
     #get_y=label_func,
-    get_y=lambda x: [label_func(x)],
+    get_y=get_celeba_label,
     splitter=celeba_splitter,
     item_tfms=align_resize
 )
