@@ -36,10 +36,10 @@ ENCODING_DIM = 256
 PATIENCE = 5
 TARGET_ATTRIBUTE = 'Male' # L'attribut CelebA que tu souhaites classifier
 
-# timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-# RUN_NAME = f"celeba_classifier_{timestamp}"
-# OUT_DIR = Path(f"results/{RUN_NAME}")
-# OUT_DIR.mkdir(parents=True, exist_ok=True)
+timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+RUN_NAME = f"celeba_classifier_{timestamp}"
+OUT_DIR = Path(f"results/{RUN_NAME}")
+OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
 
