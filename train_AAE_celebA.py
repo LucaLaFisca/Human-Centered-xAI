@@ -47,6 +47,8 @@ path_imgs = Path('/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/img_al
 # 1. PRÉPARATION DES DONNÉES ET LABELS (CELEBA)
 # ==============================================================================
 # Chargement du fichier des attributs de CelebA. 
+attr_file = Path('/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_attr_celeba.txt')
+df_attr = pd.read_csv(attr_file, sep=r'\s+', header=1, index_col=0)
 attr_dict = {
     img_name: f"Not {TARGET_ATTRIBUTE}" if val == -1 else TARGET_ATTRIBUTE 
     for img_name, val in zip(df_attr.index, df_attr[TARGET_ATTRIBUTE])
