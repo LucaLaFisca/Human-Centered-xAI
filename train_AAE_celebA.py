@@ -67,14 +67,16 @@ def celeba_splitter(items):
     # le MÊME sous-ensemble d'images à chaque fois que tu lances le script
     random.seed(42)
     
-    # On s'assure de ne pas demander plus d'images qu'il n'y en a réellement
-    n_train_actual = min(N_TRAIN, len(train_idx))
-    n_valid_actual = min(N_VALID, len(valid_idx))
+    # # On s'assure de ne pas demander plus d'images qu'il n'y en a réellement
+    # n_train_actual = min(N_TRAIN, len(train_idx))
+    # n_valid_actual = min(N_VALID, len(valid_idx))
     
-    train_subset = random.sample(train_idx, n_train_actual)
-    valid_subset = random.sample(valid_idx, n_valid_actual)
-    
-    return train_subset, valid_subset
+    # train_subset = random.sample(train_idx, n_train_actual)
+    # valid_subset = random.sample(valid_idx, n_valid_actual)
+    random.shuffle(train_idx)
+    random.shuffle(valid_idx)
+   #return train_subset, valid_subset
+    return train_idx[:N_TRAIN_LIMIT], valid_idx[:N_VALID_LIMIT]
 
 
 # 3. L'intégrer dans le DataBlock
@@ -91,7 +93,7 @@ dblock = DataBlock(
 # Création du DataLoader
 # Sur un serveur puissant, tu peux augmenter 'num_workers' (ex: 4 ou 8) pour accélérer le chargement des batchs
 dls = dblock.dataloaders(path_imgs, bs=128, num_workers=0)
-
+print(f"Images trouvées - Train: {len(dls.train_ds)}, Valid: {len(dls.valid_ds)}")
 # ── Modèle ───────────────────────────────────────────────────────────
 model = AAE(
     input_size=256, #resize change donc on change à 256
