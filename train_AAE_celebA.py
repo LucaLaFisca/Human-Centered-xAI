@@ -27,73 +27,55 @@ path_imgs = Path('/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/img_al
 
 # Chemin absolu vers le fichier texte des partitions
 partition_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_eval_partition.txt'
+# ==============================================================================
+# 0. CONFIGURATION ET HYPERPARAMÈTRES
+# ==============================================================================
+EPOCHS = 30
+BATCH_SIZE = 128
+ENCODING_DIM = 256
+PATIENCE = 5
+TARGET_ATTRIBUTE = 'Male' # L'attribut CelebA que tu souhaites classifier
 
-# 1. Charger le fichier de partition avec Pandas
-df_partition = pd.read_csv(partition_file, sep='\s+', header=None, names=['image_id', 'partition'])
+timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+RUN_NAME = f"celeba_classifier_{timestamp}"
+OUT_DIR = Path(f"results/{RUN_NAME}")
+OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-# Format attendu : {'000001.jpg': 0, '000002.jpg': 1, ...}
+
+
+# ==============================================================================
+# 1. PRÉPARATION DES DONNÉES ET LABELS (CELEBA)
+# ==============================================================================
+# Chargement du fichier des attributs de CelebA. 
+attr_dict = {
+    img_name: f"Not {TARGET_ATTRIBUTE}" if val == -1 else TARGET_ATTRIBUTE 
+    for img_name, val in zip(df_attr.index, df_attr[TARGET_ATTRIBUTE])
+}
+
+def get_celeba_label(img_path):
+    return attr_dict.get(img_path.name)
+
+df_partition = pd.read_csv('celeba_mini_clean/list_eval_partition.txt', sep='\s+', header=None, names=['image_id', 'partition'])
 part_dict = dict(zip(df_partition['image_id'], df_partition['partition']))
-
-# 2. Créer le Splitter sur mesure
-# def celeba_splitter(items):
-#     train_idx, valid_idx = [], []
-#     for i, item in enumerate(items):
-#         part = part_dict.get(item.name)
-#         if part == 0:
-#             train_idx.append(i)  # 0 : Training
-#         elif part == 1:
-#             valid_idx.append(i)  # 1 : Validation
-#     return train_idx, valid_idx
-#2. test avec splitter 5000
-import random
-
-# Définis combien d'images tu veux garder (ex: 5000 pour le train, 1000 pour la validation)
-N_TRAIN = 7000
-N_VALID = 2000
 
 def celeba_splitter(items):
     train_idx, valid_idx = [], []
-    
-    # 1. On trie toutes les images selon la partition comme avant
     for i, item in enumerate(items):
         part = part_dict.get(item.name)
-        if part == 0:
-            train_idx.append(i)  # 0 : Training
-        elif part == 1:
-            valid_idx.append(i)  # 1 : Validation
-            
-    # 2. On prend un sous-ensemble aléatoire
-    # random.seed(42) permet de bloquer l'aléatoire : tu auras toujours 
-    # le MÊME sous-ensemble d'images à chaque fois que tu lances le script
-    random.seed(42)
-    
-    # # On s'assure de ne pas demander plus d'images qu'il n'y en a réellement
-    # n_train_actual = min(N_TRAIN, len(train_idx))
-    # n_valid_actual = min(N_VALID, len(valid_idx))
-    
-    # train_subset = random.sample(train_idx, n_train_actual)
-    # valid_subset = random.sample(valid_idx, n_valid_actual)
-    random.shuffle(train_idx)
-    random.shuffle(valid_idx)
-   #return train_subset, valid_subset
-    return train_idx[:N_TRAIN], valid_idx[:N_VALID]
+        if part == 0: train_idx.append(i)
+        elif part == 1: valid_idx.append(i)
+    return train_idx, valid_idx
 
 
-# 3. L'intégrer dans le DataBlock
-align_resize = Resize(256, method=ResizeMethod.Pad, pad_mode=PadMode.Zeros)
-
-dblock = DataBlock(
-    blocks=(ImageBlock,CategoryBlock), #changed blocks=(ImageBlock, ImageBlock)
+dblock_classif = DataBlock(
+    blocks=(ImageBlock, CategoryBlock), 
     get_items=get_image_files,
-   #get_y=lambda x: x,
-    get_y=label_func,
+    get_y=get_celeba_label,      
     splitter=celeba_splitter,
-    item_tfms=align_resize
+    item_tfms=Resize(256, method=ResizeMethod.Pad, pad_mode=PadMode.Zeros)
 )
 
-# Création du DataLoader
-# Sur un serveur puissant, tu peux augmenter 'num_workers' (ex: 4 ou 8) pour accélérer le chargement des batchs
-dls = dblock.dataloaders(path_imgs, bs=128, num_workers=0)
+dls = dblock_classif.dataloaders(path_imgs, bs=BATCH_SIZE, num_workers=0)
 print(f"Images trouvées - Train: {len(dls.train_ds)}, Valid: {len(dls.valid_ds)}")
 # ── Modèle ───────────────────────────────────────────────────────────
 model = AAE(
