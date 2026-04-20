@@ -95,7 +95,7 @@ dls = dblock.dataloaders(path_imgs, bs=128, num_workers=0)
 # ── Modèle ───────────────────────────────────────────────────────────
 model = AAE(
     input_size=128,
-    input_channels=1, #onchange l'input a 1 car on a mis les images en noir et blanc
+    input_channels=3, #onchange l'input a 3 car dataset celebA
     encoding_dims=512,
     classes=2,
 )
