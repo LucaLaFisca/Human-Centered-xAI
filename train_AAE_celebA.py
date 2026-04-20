@@ -8,7 +8,7 @@ import seaborn as sns
 import pingouin as pg
 from sklearn.manifold import TSNE
 from scipy import stats
-
+import random
 #test pour changer reglage flat cos
 from functools import partial
 from fastai.optimizer import Adam
@@ -19,25 +19,84 @@ from utils import (UnfreezeFcCritAdaptative, label_func, GetLatentSpace,
                    LossAttrMetric, distrib_regul_regression, compute_main_direction)
 
 # ── DataLoader ───────────────────────────────────────────────────────
-#data_path = untar_data(URLs.PETS)
-data_path =Path("/home/lucaBA3/Arda/Human-Centered-xAI/db_brain_tumor")
-catblock = MultiCategoryBlock(encoded=True, vocab=['tumor', 'normal'])
+# ==============================================================================
+# CHARGEMENT DES DONNÉES CELEBA (RGB) - ADAPTÉ POUR SERVEUR DISTANT
+# ==============================================================================
+# Chemin absolu vers le dossier contenant les images
+path_imgs = Path('/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/img_align_celeba') 
+
+# Chemin absolu vers le fichier texte des partitions
+partition_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_eval_partition.txt'
+
+# 1. Charger le fichier de partition avec Pandas
+df_partition = pd.read_csv(partition_file, sep='\s+', header=None, names=['image_id', 'partition'])
+
+# Format attendu : {'000001.jpg': 0, '000002.jpg': 1, ...}
+part_dict = dict(zip(df_partition['image_id'], df_partition['partition']))
+
+# 2. Créer le Splitter sur mesure
+# def celeba_splitter(items):
+#     train_idx, valid_idx = [], []
+#     for i, item in enumerate(items):
+#         part = part_dict.get(item.name)
+#         if part == 0:
+#             train_idx.append(i)  # 0 : Training
+#         elif part == 1:
+#             valid_idx.append(i)  # 1 : Validation
+#     return train_idx, valid_idx
+#2. test avec splitter 5000
+import random
+
+# Définis combien d'images tu veux garder (ex: 5000 pour le train, 1000 pour la validation)
+N_TRAIN = 7000
+N_VALID = 2000
+
+def celeba_splitter(items):
+    train_idx, valid_idx = [], []
+    
+    # 1. On trie toutes les images selon la partition comme avant
+    for i, item in enumerate(items):
+        part = part_dict.get(item.name)
+        if part == 0:
+            train_idx.append(i)  # 0 : Training
+        elif part == 1:
+            valid_idx.append(i)  # 1 : Validation
+            
+    # 2. On prend un sous-ensemble aléatoire
+    # random.seed(42) permet de bloquer l'aléatoire : tu auras toujours 
+    # le MÊME sous-ensemble d'images à chaque fois que tu lances le script
+    random.seed(42)
+    
+    # On s'assure de ne pas demander plus d'images qu'il n'y en a réellement
+    n_train_actual = min(N_TRAIN, len(train_idx))
+    n_valid_actual = min(N_VALID, len(valid_idx))
+    
+    train_subset = random.sample(train_idx, n_train_actual)
+    valid_subset = random.sample(valid_idx, n_valid_actual)
+    
+    return train_subset, valid_subset
+
+
+# 3. L'intégrer dans le DataBlock
+align_resize = Resize(256, method=ResizeMethod.Pad, pad_mode=PadMode.Zeros)
+
 dblock = DataBlock(
-    blocks=(ImageBlock(PILImageBW), catblock), #blocks=(ImageBlock(cls=PILImageBW) pour mettre les images en noir et blanc
+    blocks=(ImageBlock, ImageBlock), 
     get_items=get_image_files,
-    splitter=RandomSplitter(valid_pct=0.2, seed=42),
-    get_y=label_func,
-    item_tfms=Resize(128),
-    #batch_tfms=[Normalize.from_stats(*imagenet_stats)], 
-    #removed batch tfms car ca bloquer pour les canaux 
+    get_y=lambda x: x,
+    splitter=celeba_splitter,
+    item_tfms=align_resize
 )
-dls = dblock.dataloaders(data_path, bs=128, drop_last=True, num_workers=0)#changed BS to 128
+
+# Création du DataLoader
+# Sur un serveur puissant, tu peux augmenter 'num_workers' (ex: 4 ou 8) pour accélérer le chargement des batchs
+dls = dblock.dataloaders(path_imgs, bs=128, num_workers=0)
 
 # ── Modèle ───────────────────────────────────────────────────────────
 model = AAE(
     input_size=128,
     input_channels=1, #onchange l'input a 1 car on a mis les images en noir et blanc
-    encoding_dims=1024,
+    encoding_dims=512,
     classes=2,
 )
 
