@@ -76,7 +76,7 @@ def celeba_splitter(items):
     random.shuffle(train_idx)
     random.shuffle(valid_idx)
    #return train_subset, valid_subset
-    return train_idx[:N_TRAIN_LIMIT], valid_idx[:N_VALID_LIMIT]
+    return train_idx[:N_TRAIN], valid_idx[:N_VALID]
 
 
 # 3. L'intégrer dans le DataBlock
