@@ -141,26 +141,20 @@ class LossAttrMetric(Metric):
         return self.attr_name
 
 
-def label_func(f): 
-   name = f.name #on veut accéder aux noms uniquement
-   if name[0].isupper(): #on veut tester la première lettre uniquement donc on applique "isupper" au premier élément de name (name[0])
-       lab = torch.tensor([1, 0], dtype=torch.float32)
-   else:
-       lab = torch.tensor([0, 1], dtype=torch.float32)
-   return lab
-# def label_func(fname):
-#     # On récupère le nom du fichier et on le met en minuscules par sécurité
-#     nom_fichier = fname.name.lower()
+# def label_func(f): 
+#    name = f.name #on veut accéder aux noms uniquement
+#    if name[0].isupper(): #on veut tester la première lettre uniquement donc on applique "isupper" au premier élément de name (name[0])
+#        lab = torch.tensor([1, 0], dtype=torch.float32)
+#    else:
+#        lab = torch.tensor([0, 1], dtype=torch.float32)
+#    return lab
+# test label func male
+def label_func(x):
+    # Récupère juste le mot ou le chiffre
+    label = attr_dict.get(x.name) 
     
-#     # Si le nom contient 'yes', c'est une tumeur
-#     if 'yes' in nom_fichier:
-#         return 'tumor'
-#     # Si le nom contient 'no', c'est un cerveau sain
-#     elif 'no' in nom_fichier:
-#         return 'normal'
-#     # Sécurité au cas où un fichier aurait un nom inattendu
-#     else:
-#         return 'normal'
+    # Ne le transforme SURTOUT PAS en tenseur !
+    return label # Renvoie juste "Male" ou "Not Male" (ou 0 / 1)
 
 # Compute the regularized linear regression of the latent space wrt the labels
 def distrib_regul_regression(z, target, nbins: int=100, get_reg: bool=False):
