@@ -42,7 +42,7 @@ OUT_DIR = Path(f"results/{RUN_NAME}")
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
-
+path_imgs = Path('/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/img_align_celeba') 
 # ==============================================================================
 # 1. PRÉPARATION DES DONNÉES ET LABELS (CELEBA)
 # ==============================================================================
