@@ -15,7 +15,7 @@ class AAE(nn.Module):
         input_size,
         input_channels,
         encoding_dims=128,
-        step_channels=128, # 16 avant
+        step_channels=16, # 16 avant
         nonlinearity=nn.LeakyReLU(0.2),
         classes=2,
         gen_train=True
@@ -64,7 +64,7 @@ class AAE(nn.Module):
         self.decoder_fc = nn.Linear(encoding_dims, step_channels)
         decoder = []
         size = 1
-        channels = step_channels
+        # channels = step_channels
         while size < input_size // 2:
             decoder.append(
                 nn.Sequential(
@@ -73,7 +73,7 @@ class AAE(nn.Module):
                     nonlinearity,
                 )
             )
-            channels *= 4
+            channels //= 4
             size *= 4
         decoder.append(nn.ConvTranspose2d(channels, input_channels, 5, 2, 2, 1))
         self.decoder = nn.Sequential(*decoder)
