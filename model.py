@@ -67,16 +67,15 @@ class AAE(nn.Module):
         # channels = step_channels
         while size < input_size // 2:
 
-            next_channels = channels // 4
+            
             decoder.append(
                 nn.Sequential(
-                    nn.ConvTranspose2d(channels, next_channels, 5, 4, 2, 3),  #(channels, channels * 4, 5, 4, 2, 3)
+                    nn.ConvTranspose2d(channels, channels * 4, 5, 4, 2, 3),  #(channels, channels * 4, 5, 4, 2, 3)
                     nn.BatchNorm2d(channels * 4),
                     nonlinearity,
                 )
             )
-            channels = next_channels
-            #channels //= 4
+            channels //= 4
             size *= 4
         decoder.append(nn.ConvTranspose2d(channels, input_channels, 5, 2, 2, 1))
         self.decoder = nn.Sequential(*decoder)
