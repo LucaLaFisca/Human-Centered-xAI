@@ -3,17 +3,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 from fastai.vision.all import *
 from fastai.data.all import *
-from pytorch_msssim import ms_ssim
 
-if torch.cuda.is_available():
-    # Sur le serveur (tu peux préciser "cuda:3" si tu veux un GPU spécifique)
-    dev = torch.device("cuda") 
-elif torch.backends.mps.is_available():
-    # Sur ton Mac (Apple Silicon M1/M2/M3...)
-    dev = torch.device("mps")
-else:
-    # Par défaut (si ni GPU Nvidia ni puce Apple)
-    dev = torch.device("cpu")
+# dev = 'cuda:3'
+# torch.cuda.set_device(dev)
+dev = torch.cuda.current_device()
 
 
 class AAE(nn.Module):
@@ -22,7 +15,7 @@ class AAE(nn.Module):
         input_size,
         input_channels,
         encoding_dims=128,
-        step_channels=16, 
+        step_channels=16, # 16 avant
         nonlinearity=nn.LeakyReLU(0.2),
         classes=2,
         gen_train=True
@@ -67,84 +60,70 @@ class AAE(nn.Module):
         self.encoder = nn.Sequential(*encoder)
         self.encoder_fc = nn.Linear(
             channels, encoding_dims
-        ) 
-        # Channels correspond à 4096 pour input_size=256
-
-        self.decoder_fc = nn.Linear(encoding_dims, channels)
-        # --- DECODEUR ---
-        decoder_channels = [channels//4, channels//16, channels//64, channels//256] # 4 couches comme à l'encodeur 
-        scale = 4
-
-        decoder = []
-        in_ch = channels # Doit correspondre à la sortie de self.decoder_fc
+        )  # Can add a Tanh nonlinearity if training is unstable as noise prior is Gaussian
+        # self.decoder_fc = nn.Linear(encoding_dims, step_channels)
+        # decoder = []
+        # size = 1
+        # #channels = step_channels
         
-        for out_ch in decoder_channels:
-            decoder.append(nn.Sequential(
-                nn.Upsample(scale_factor=scale, mode='bilinear', align_corners=False),
-                nn.Conv2d(in_ch, out_ch, kernel_size=5, padding=2), 
-                nn.BatchNorm2d(out_ch),
-                nonlinearity
-            ))
-            in_ch = out_ch
-        # --- LA COUCHE FINALE DE RESTITUTION ---
-        decoder.append(nn.Sequential(
-            nn.Conv2d(in_ch, input_channels, kernel_size=5, padding=2),
-            nn.Sigmoid()
-        ))
-        
-        self.decoder = nn.Sequential(*decoder)
+        # while size < input_size // 2:
+
+        #     channels //= 4
+        #     decoder.append(
+        #         nn.Sequential(
+        #             nn.ConvTranspose2d(channels, channels * 4, 5, 4, 2, 3),  #(channels, channels * 4, 5, 4, 2, 3)
+        #             nn.BatchNorm2d(channels *4),
+        #             nonlinearity,
+        #         )
+        #     )
+        #     #channels //= 4
+        #     size *= 4
+        # decoder.append(nn.ConvTranspose2d(channels, input_channels, 5, 2, 2, 1))
+        # self.decoder = nn.Sequential(*decoder)
 
 
     def latent_gan(self, zi: Tensor) -> Tensor:
-         # zi shape : (batch_size, 128) — échantillons individuels
+        # zi shape : (batch_size, 128) — échantillons individuels
         x = F.leaky_relu(self.bn_crit1(self.fc_crit1(zi)), negative_slope=0.2)
         x = F.leaky_relu(self.bn_crit2(self.fc_crit2(x)),  negative_slope=0.2)
         x = torch.sigmoid(self.fc_crit3(x))  # (batch_size, 1)
         return x
-    
-    def denoising_ae_loss_func(self, clean_xb, pred, yb):
-        """
-        clean_xb : image originale propre (target de reconstruction) [0, 1]
-        pred     : labels de classification (sortie du forward)
-        yb       : labels de classification réels
-        """
-        # Poids de la perte hybride (démontré optimal dans la littérature)
-        alpha = 0.84
-        
-        # 1. Perte L1 : Maintient la colorimétrie (évite les décalages spectraux de la SSIM seule)
-        l1_loss = F.l1_loss(self.decoder_output, clean_xb)
-        
-        # 2. Perte MS-SSIM : Force la reconstruction des structures et textures
-        ms_ssim_val = ms_ssim(self.decoder_output, clean_xb, data_range=1.0, size_average=True)
-        msssim_loss = 1.0 - ms_ssim_val
-        
-        # 3. Combinaison
-        self.recons_loss = alpha * msssim_loss + (1.0 - alpha) * l1_loss
-        
-        return self.recons_loss 
 
     def forward(self, x):
+        print(f"\n--- DEBUT FORWARD ---")
+        print(f"1. Image entrée 'x' : {x.shape}")
+        
         """Sequentially pass `x` trough model`s encoder, decoder and heads"""
         self.input_image = x
 
-        features = self.encoder(x) 
-        self.zi = F.leaky_relu(self.bn_lin(self.encoder_fc(features.view(-1, features.size(1) * features.size(2) * features.size(3)))), negative_slope=0.2)
-
-        z = self.decoder_fc(self.zi)     
+        features = self.encoder(x) # modifier relu en leaky_relu
+        print(f"-> Après convolution (features) : {features.shape}")
+        # self.zi = F.leaky_relu(self.bn_lin(self.encoder_fc(
+        #             features.view(
+        #                 -1, features.size(1) * features.size(2) * features.size(3)
+        #             )
+        #         )))
+        # Test self.zi avec batch norm et sans leaky relu 
+        #test sans batch norm self.bn_lin
+        self.zi = self.bn_lin(self.encoder_fc(
+            features.view(
+                -1, features.size(1) * features.size(2) * features.size(3)
+            ))
+        )
+        # print(f"-> Après la couche linéaire (zi) : {self.zi.shape}")
+        # x = self.decoder_fc(self.zi)
+        # print(f"3. Sortie Décodeur 'recons' : {x.shape}") 
         
-        z_spatial = z.view(z.size(0), -1, 1, 1) # 4096 = channels finaux de l'encodeur pour input_size=256
-        
-        # On envoie dans le décodeur convolutif
-        self.decoder_output = self.decoder(z_spatial)
-
+        # self.decoder_output = self.decoder(x.view(-1, x.size(1), 1, 1))
+        # print(f"4. Sortie decoder output : {self.decoder_output.shape}")
         self.gan_fake = self.latent_gan(self.zi)
         z = torch.randn_like(self.zi)
         self.gan_real = self.latent_gan(z)
-
+        print(f"4. Sortie z : {z.shape}")
         # x = self.dropout(self.zi)
         labels = self.linear(self.zi)
         # labels = F.softmax(x)
-
+        print(f"4. Sortie label' : {labels.shape}")
         return labels
 
     def ae_loss_func(self, output, target):
@@ -157,16 +136,6 @@ class AAE(nn.Module):
         classif_loss = bce(output, target)
             
         return self.recons_loss + .001*classif_loss
-    
-    def pure_classif_loss_func(self, output, target, **kwargs):
-        """
-        Fonction de perte pour classification à 2 classes.
-        Accepte **kwargs pour supporter l'argument 'reduction' envoyé par Fastai 
-        lors de l'interprétation.
-        """
-        # F.cross_entropy fait exactement la même chose que nn.CrossEntropyLoss,
-        # mais sous forme de fonction, ce qui permet de lui passer facilement les kwargs.
-        return F.cross_entropy(output, target, **kwargs)
 
     def classif_loss_func(self, output, target):
         delta = .5
@@ -207,6 +176,12 @@ class AAE(nn.Module):
 
 
     def aae_loss_func(self, output, target):
+        
+        # # 1. On regarde la mémoire juste avant le calcul (en Mo)
+        # mem_before = torch.cuda.memory_allocated() / 1024**2
+        # print(f"-> Entrée Loss | Mem: {mem_before:.1f} Mo | Preds: {output.shape} | Targets: {target.shape}")
+        
+        
         adversarial_loss = nn.BCELoss()
         delta = .5
         huber = nn.HuberLoss(delta=delta)
@@ -221,7 +196,7 @@ class AAE(nn.Module):
             self.adv_loss = adversarial_loss(self.gan_fake, valid)
             self.crit_loss = 0
             # self.classif_loss = self.classif_loss_func(self.pred, classif_target)
-            # loss = 0.1 * self.adv_loss + 0.9 * self.recons_loss + self.classif_loss
+            #loss = 0.2 * self.adv_loss + 0.8 * self.recons_loss + self.classif_loss
         else: #discriminator loss
             # Measure discriminator's ability to classify real from generated samples
             valid = torch.ones_like(self.gan_real, requires_grad=False).detach()
@@ -237,7 +212,7 @@ class AAE(nn.Module):
         self.classif_loss = bce(output, target)
 
         # loss = self.adv_loss + .1*self.recons_loss + .4*self.classif_loss
-        loss = self.adv_loss
+        loss = self.adv_loss #+ .99*self.recons_loss changed self.recons from 0.1 to 0.05
 
         # print(f'Losses: {loss.shape, self.kld_loss.shape, self.recons_loss.shape, self.classif_loss.shape}')
             
@@ -246,6 +221,6 @@ class AAE(nn.Module):
         # else:
         #     self.gen_train = True
         # self.count_acc += 1
-        # # print(f'count_acc: {self.count_acc, self.gen_train}')
+        # print(f'count_acc: {self.count_acc, self.gen_train}')
             
         return loss
