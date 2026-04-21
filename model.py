@@ -119,7 +119,7 @@ class AAE(nn.Module):
         # x = self.dropout(self.zi)
         labels = self.linear(self.zi)
         # labels = F.softmax(x)
-
+        print(f"4. Sortie label' : {labels.shape}")
         return labels
 
     def ae_loss_func(self, output, target):
