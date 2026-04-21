@@ -90,14 +90,13 @@ class AAE(nn.Module):
         return x
 
     def forward(self, x):
-        print(f"\n--- DEBUT FORWARD ---")
-        print(f"1. Image entrée 'x' : {x.shape}")
+        
         
         """Sequentially pass `x` trough model`s encoder, decoder and heads"""
         self.input_image = x
 
         features = self.encoder(x) # modifier relu en leaky_relu
-        print(f"-> Après convolution (features) : {features.shape}")
+        
         # self.zi = F.leaky_relu(self.bn_lin(self.encoder_fc(
         #             features.view(
         #                 -1, features.size(1) * features.size(2) * features.size(3)
@@ -119,11 +118,11 @@ class AAE(nn.Module):
         self.gan_fake = self.latent_gan(self.zi)
         z = torch.randn_like(self.zi)
         self.gan_real = self.latent_gan(z)
-        print(f"4. Sortie z : {z.shape}")
+        
         # x = self.dropout(self.zi)
         labels = self.linear(self.zi)
         # labels = F.softmax(x)
-        print(f"4. Sortie label' : {labels.shape}")
+       
         return labels
 
     def ae_loss_func(self, output, target):
