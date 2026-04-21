@@ -88,7 +88,7 @@ class AAE(nn.Module):
             in_ch = out_ch
         # --- LA COUCHE FINALE DE RESTITUTION ---
         decoder.append(nn.Sequential(
-            nn.Conv2d(in_ch, input_channels, kernel_size=5, spadding=2),
+            nn.Conv2d(in_ch, input_channels, kernel_size=5, padding=2),
             nn.Sigmoid()
         ))
         
