@@ -65,7 +65,7 @@ class AAE(nn.Module):
         decoder = []
         size = 1
         #channels = step_channels
-        channels=4096
+        
         while size < input_size // 2:
 
             
