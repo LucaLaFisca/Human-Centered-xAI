@@ -71,8 +71,8 @@ class AAE(nn.Module):
             
             decoder.append(
                 nn.Sequential(
-                    nn.ConvTranspose2d(channels, channels // 4, 5, 4, 2, 3),  #(channels, channels * 4, 5, 4, 2, 3)
-                    nn.BatchNorm2d(channels //4),
+                    nn.ConvTranspose2d(channels, channels * 4, 5, 4, 2, 3),  #(channels, channels * 4, 5, 4, 2, 3)
+                    nn.BatchNorm2d(channels *4),
                     nonlinearity,
                 )
             )
