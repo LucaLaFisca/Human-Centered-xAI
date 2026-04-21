@@ -110,7 +110,7 @@ class AAE(nn.Module):
         print(f"-> Après la couche linéaire (zi) : {self.zi.shape}")
         x = self.decoder_fc(self.zi)
         print(f"3. Sortie Décodeur 'recons' : {x.shape}")
-        self.decoder_output = self.decoder(x.view(-1, x.size(1), 1, 1))
+        self.decoder_output = self.decoder(x.view(-1), x.size(1), 1, 1)
         print(f"4. Sortie decoder output : {self.decoder_output.shape}")
         self.gan_fake = self.latent_gan(self.zi)
         z = torch.randn_like(self.zi)
