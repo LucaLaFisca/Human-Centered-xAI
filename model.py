@@ -64,7 +64,8 @@ class AAE(nn.Module):
         self.decoder_fc = nn.Linear(encoding_dims, step_channels)
         decoder = []
         size = 1
-        # channels = step_channels
+        #channels = step_channels
+        channels=4096
         while size < input_size // 2:
 
             
