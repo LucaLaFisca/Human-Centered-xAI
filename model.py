@@ -15,7 +15,7 @@ class AAE(nn.Module):
         input_size,
         input_channels,
         encoding_dims=128,
-        step_channels=16,
+        step_channels=128, # 16 avant
         nonlinearity=nn.LeakyReLU(0.2),
         classes=2,
         gen_train=True
