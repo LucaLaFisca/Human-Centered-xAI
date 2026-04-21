@@ -167,6 +167,12 @@ class AAE(nn.Module):
 
 
     def aae_loss_func(self, output, target):
+        
+        # 1. On regarde la mémoire juste avant le calcul (en Mo)
+        mem_before = torch.cuda.memory_allocated() / 1024**2
+        print(f"-> Entrée Loss | Mem: {mem_before:.1f} Mo | Preds: {output.shape} | Targets: {target.shape}")
+        
+        
         adversarial_loss = nn.BCELoss()
         delta = .5
         huber = nn.HuberLoss(delta=delta)
