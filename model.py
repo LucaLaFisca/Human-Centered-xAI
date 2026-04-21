@@ -115,7 +115,7 @@ class AAE(nn.Module):
         self.gan_fake = self.latent_gan(self.zi)
         z = torch.randn_like(self.zi)
         self.gan_real = self.latent_gan(z)
-
+        print(f"4. Sortie z : {z.shape}")
         # x = self.dropout(self.zi)
         labels = self.linear(self.zi)
         # labels = F.softmax(x)
