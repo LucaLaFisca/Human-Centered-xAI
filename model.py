@@ -94,6 +94,7 @@ class AAE(nn.Module):
         self.input_image = x
 
         features = self.encoder(x) # modifier relu en leaky_relu
+        print(f"-> Après convolution (features) : {features.shape}")
         # self.zi = F.leaky_relu(self.bn_lin(self.encoder_fc(
         #             features.view(
         #                 -1, features.size(1) * features.size(2) * features.size(3)
@@ -106,7 +107,7 @@ class AAE(nn.Module):
                 -1, features.size(1) * features.size(2) * features.size(3)
             ))
         )
-
+        print(f"-> Après la couche linéaire (zi) : {self.zi.shape}")
         x = self.decoder_fc(self.zi)
         self.decoder_output = self.decoder(x.view(-1, x.size(1), 1, 1))
 
