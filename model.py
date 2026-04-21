@@ -129,7 +129,7 @@ class AAE(nn.Module):
         delta = .5
         huber = nn.HuberLoss(delta=delta)
 
-        self.recons_loss = huber(self.input_image, self.decoder_output)
+        #self.recons_loss = huber(self.input_image, self.decoder_output)
 
         bce = nn.BCEWithLogitsLoss()
         classif_loss = bce(output, target)
@@ -140,7 +140,7 @@ class AAE(nn.Module):
         delta = .5
         huber = nn.HuberLoss(delta=delta)
 
-        self.recons_loss = huber(self.input_image, self.decoder_output)
+        #self.recons_loss = huber(self.input_image, self.decoder_output)
 
         bce = nn.BCEWithLogitsLoss()
         self.classif_loss = bce(output, target)
@@ -185,7 +185,7 @@ class AAE(nn.Module):
         delta = .5
         huber = nn.HuberLoss(delta=delta)
 
-        self.recons_loss = huber(self.input_image, self.decoder_output)
+        #self.recons_loss = huber(self.input_image, self.decoder_output)
 
         # self.kld_loss = -0.5 * torch.sum(1 + self.log_var - self.mu ** 2 - self.log_var.exp())
     
