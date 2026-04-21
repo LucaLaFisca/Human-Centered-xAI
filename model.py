@@ -71,8 +71,8 @@ class AAE(nn.Module):
             
             decoder.append(
                 nn.Sequential(
-                    nn.ConvTranspose2d(channels, channels * 4, 5, 4, 2, 3),  #(channels, channels * 4, 5, 4, 2, 3)
-                    nn.BatchNorm2d(channels * 4),
+                    nn.ConvTranspose2d(channels, channels // 4, 5, 4, 2, 3),  #(channels, channels * 4, 5, 4, 2, 3)
+                    nn.BatchNorm2d(channels //4),
                     nonlinearity,
                 )
             )
@@ -113,7 +113,7 @@ class AAE(nn.Module):
         print(f"-> Après la couche linéaire (zi) : {self.zi.shape}")
         x = self.decoder_fc(self.zi)
         print(f"3. Sortie Décodeur 'recons' : {x.shape}") 
-        print(f"x.size: {x.size(1)}")
+        
         self.decoder_output = self.decoder(x.view(-1, x.size(1), 1, 1))
         print(f"4. Sortie decoder output : {self.decoder_output.shape}")
         self.gan_fake = self.latent_gan(self.zi)
