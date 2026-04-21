@@ -130,9 +130,21 @@ class LossAttrMetric(Metric):
         self.vals = []
     def reset(self):
         self.vals = []
+    # def accumulate(self, learn):
+    #     setattr(self, self.attr_name, getattr(learn, self.attr_name))
+    #     self.vals.append(getattr(self, self.attr_name))
     def accumulate(self, learn):
-        setattr(self, self.attr_name, getattr(learn, self.attr_name))
-        self.vals.append(getattr(self, self.attr_name))
+        # 1. On récupère la perte (qui est un tenseur PyTorch)
+        val = getattr(learn, self.attr_name)
+        
+        # 2. On détache la valeur pour ne garder que le chiffre (float)
+        # Cela permet à PyTorch de vider la mémoire GPU du batch précédent
+        if hasattr(val, 'item'): 
+            val = val.item()
+            
+        # 3. On stocke le simple chiffre
+        setattr(self, self.attr_name, val)
+        self.vals.append(val)
     @property
     def value(self):
         return torch.mean(torch.tensor(self.vals))
