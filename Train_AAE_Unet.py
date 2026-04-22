@@ -135,5 +135,5 @@ _, t_valid = learn.get_preds(ds_idx=1, cbs=[GetLatentSpace()])
 ze_valid = learn.zi_valid.clone()
 
 new_zi = torch.vstack((ze_train, ze_valid))
-torch.save(new_zi, 'espace_latent_pets.pt')
+torch.save(new_zi, 'espace_latent_Unet.pt')
 print(f"Ze shape : {new_zi.shape}")
