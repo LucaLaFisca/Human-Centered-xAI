@@ -27,7 +27,7 @@ part_dict = dict(zip(df_partition['image_id'], df_partition['partition']))
 
 
 # Définis combien d'images tu veux garder (ex: 5000 pour le train, 1000 pour la validation)
-N_TRAIN = 2500
+N_TRAIN = 4500
 N_VALID = 500
 
 def celeba_splitter(items):
