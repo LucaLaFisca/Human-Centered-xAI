@@ -253,12 +253,12 @@ class AAE(nn.Module):
         bce = nn.BCEWithLogitsLoss()
         self.classif_loss = bce(output, target)
 
-        loss = self.adv_loss + .1*self.recons_loss + .001*self.classif_loss
+        loss = self.adv_loss #+ .1*self.recons_loss + .001*self.classif_loss
             
-        if self.count_acc % 2 == 0:
-            self.gen_train = False
-        else:
-            self.gen_train = True
-        self.count_acc += 1
+        # if self.count_acc % 2 == 0:
+        #     self.gen_train = False
+        # else:
+        #     self.gen_train = True
+        # self.count_acc += 1
             
         return loss
