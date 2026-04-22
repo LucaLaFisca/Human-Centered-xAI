@@ -27,8 +27,8 @@ part_dict = dict(zip(df_partition['image_id'], df_partition['partition']))
 
 
 # Définis combien d'images tu veux garder (ex: 5000 pour le train, 1000 pour la validation)
-N_TRAIN = 7000
-N_VALID = 2000
+N_TRAIN = 700
+N_VALID = 200
 
 def celeba_splitter(items):
     train_idx, valid_idx = [], []
@@ -109,7 +109,7 @@ model_file = 'cat_dog_aae_test'
 #print(f"Learning rate valley : {learnint ag_rate.valley:.6f}")
 print(f"start learn.fit")
 #learn.fit_one_cycle(100, lr_max=1e-3)
-learn.fit_flat_cos(100, lr=2e-4, pct_start=0.70, #0.72
+learn.fit_flat_cos(100, lr=1e-3, pct_start=0.70, #0.72
 
     cbs=[
         GradientAccumulation(n_acc=128),          # Bs=128 n=4 
