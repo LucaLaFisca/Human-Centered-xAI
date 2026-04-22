@@ -95,7 +95,7 @@ print(f"Images trouvées - Train: {len(dls.train_ds)}, Valid: {len(dls.valid_ds)
 model = AAE(
     input_size=256, #resize change donc on change à 256
     input_channels=3, #onchange l'input a 3 car dataset celebA
-    encoding_dims=128,
+    encoding_dims=256,
     classes=2,
 )
 
