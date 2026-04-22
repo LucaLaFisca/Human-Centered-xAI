@@ -88,7 +88,7 @@ dblock = DataBlock(
 )
 
 # Création du DataLoader
-dls = dblock.dataloaders(path_imgs, bs=128, num_workers=0)
+dls = dblock.dataloaders(path_imgs, bs=16, num_workers=0)
 #On vérifie que le nombre d'image trouvé est le bon 
 print(f"Images trouvées - Train: {len(dls.train_ds)}, Valid: {len(dls.valid_ds)}")
 # ── Modèle ───────────────────────────────────────────────────────────
@@ -111,7 +111,7 @@ print(f"start learn.fit")
 learn.fit_flat_cos(100, lr=1e-4, pct_start=0.70, #0.72
 
     cbs=[
-        GradientAccumulation(n_acc=128),          # Bs=128 n=4 
+        GradientAccumulation(n_acc=16*4),          # Bs=128 n=4 
         TrackerCallback(),
         SaveModelCallback(fname=model_file),
         EarlyStoppingCallback(min_delta=1e-4, patience=10),
