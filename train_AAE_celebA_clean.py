@@ -6,7 +6,7 @@ import pingouin as pg
 
 import random
 from model import AAE
-from utils import (UnfreezeFcCritAdaptative, label_func, GetLatentSpace,
+from utils import (UnfreezeFcCritAdaptative,FreezeDiscriminator, label_func, GetLatentSpace,
                    LossAttrMetric, distrib_regul_regression, compute_main_direction)
 
 # ── DataLoader ───────────────────────────────────────────────────────
@@ -116,7 +116,8 @@ learn.fit_flat_cos(100, lr=1e-4, pct_start=0.70, #0.72
         TrackerCallback(),
         SaveModelCallback(fname=model_file),
         EarlyStoppingCallback(min_delta=1e-4, patience=10),
-        UnfreezeFcCritAdaptative(high_threshold=0.8,low_threshold=0.65),
+        FreezeDiscriminator(),
+        #UnfreezeFcCritAdaptative(high_threshold=0.8,low_threshold=0.65),
     ]
 )
 
