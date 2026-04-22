@@ -110,7 +110,7 @@ model_file = 'cat_dog_aae_test'
 print(f"start learn.fit")
 learn.fit_flat_cos(100, lr=1e-3, pct_start=0.72,
     cbs=[
-        GradientAccumulation(n_acc=128),          # Bs=128 n=4 
+        GradientAccumulation(n_acc=128*2),          # Bs=128 n=4 
         TrackerCallback(),
         SaveModelCallback(fname=model_file),
         EarlyStoppingCallback(min_delta=1e-4, patience=15),
