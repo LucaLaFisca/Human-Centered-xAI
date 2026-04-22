@@ -116,8 +116,8 @@ learn.fit_flat_cos(100, lr=1e-4, pct_start=0.70, #0.72
         TrackerCallback(),
         SaveModelCallback(fname=model_file),
         EarlyStoppingCallback(min_delta=1e-4, patience=10),
-        FreezeDiscriminator(),
-        #UnfreezeFcCritAdaptative(high_threshold=0.8,low_threshold=0.65),
+        #FreezeDiscriminator(),
+        UnfreezeFcCritAdaptative(high_threshold=0.8,low_threshold=0.65),
     ]
 )
 
@@ -137,6 +137,6 @@ _, t_valid = learn.get_preds(ds_idx=1, cbs=[GetLatentSpace()])
 ze_valid = learn.zi_valid.clone()
 
 new_zi = torch.vstack((ze_train, ze_valid))
-torch.save(new_zi, 'espace_latent_pets.pt')
+torch.save(new_zi, 'espace_latent_celebA.pt')
 print(f"Ze shape : {new_zi.shape}")
 
