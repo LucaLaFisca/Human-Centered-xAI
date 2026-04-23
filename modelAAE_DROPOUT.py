@@ -250,15 +250,15 @@ class AAE(nn.Module):
 
     def pure_classif_loss_func(self, output, target, **kwargs):
         #On redéfinit la recon_loss
-        alpha = 0.84
-        l1_loss = F.l1_loss(self.decoder_output, clean_xb)
-        ms_ssim_val = ms_ssim(self.decoder_output, clean_xb, data_range=1.0, size_average=True)
-        msssim_loss = 1.0 - ms_ssim_val
-        self.recons_loss = alpha * msssim_loss + (1.0 - alpha) * l1_loss
+        # alpha = 0.84
+        # l1_loss = F.l1_loss(self.decoder_output, clean_xb)
+        # ms_ssim_val = ms_ssim(self.decoder_output, clean_xb, data_range=1.0, size_average=True)
+        # msssim_loss = 1.0 - ms_ssim_val
+        # self.recons_loss = alpha * msssim_loss + (1.0 - alpha) * l1_loss
 
         #loss classif
         self.classif_loss=F.cross_entropy(output, target, **kwargs)
-        loss= .85*self.recons_loss + .15*self.classif_loss
+        # loss= .85*self.recons_loss + .15*self.classif_loss
         return self.classif_loss
     
     def aae_loss_func(self, output, target):
