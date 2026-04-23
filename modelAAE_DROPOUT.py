@@ -259,7 +259,7 @@ class AAE(nn.Module):
         #loss classif
         self.classif_loss=F.cross_entropy(output, target, **kwargs)
         loss= .85*self.recons_loss + .15*self.classif_loss
-        return loss
+        return self.classif_loss
     
     def aae_loss_func(self, output, target):
         
