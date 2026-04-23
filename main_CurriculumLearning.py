@@ -263,48 +263,41 @@ new_zi = torch.vstack((new_zi, learn.zi_valid))
 torch.save(new_zi, 'z_AAE_Curriculum.pt')
 print(f"Ze shape : {new_zi.shape}")
 
-# ── Labels depuis le DataLoader (alignés sur new_zi via drop_last) ───
-#train_labels = torch.cat([y for _, y in dls.train], dim=0)
-#valid_labels = torch.cat([y for _, y in dls.valid], dim=0)
-#lab_gather   = torch.cat([train_labels, valid_labels], dim=0)
 
-#N_min      = min(len(lab_gather), len(new_zi))
-#lab_gather = lab_gather[:N_min, 1].float().cpu()  # 0.0=cat, 1.0=dog
-#category   = ['dog' if l == 1 else 'cat' for l in lab_gather.numpy()]
 
 # ── t-SNE sur Ze aligné ──────────────────────────────────────────────
 # WARNING : Partie du code qui ne fonctionne pas pour l'instant !!!
-tsne = TSNE(random_state=42)
-z    = new_zi[:N_min].view(-1, 128)
-predictions_embedded = tsne.fit_transform(z.cpu().detach().numpy())
+# tsne = TSNE(random_state=42)
+# z    = new_zi[:N_min].view(-1, 128)
+# predictions_embedded = tsne.fit_transform(z.cpu().detach().numpy())
 
-# ── Régression + figure ──────────────────────────────────────────────
-y_pred_embed  = distrib_regul_regression(predictions_embedded, lab_gather)
-diverging_norm = mcolors.TwoSlopeNorm(
-    vmin=lab_gather.min(), vcenter=0.5, vmax=lab_gather.max()
-)
-mapper = plt.cm.ScalarMappable(norm=diverging_norm)
-colors = mapper.to_rgba(lab_gather.numpy())
+# # ── Régression + figure ──────────────────────────────────────────────
+# y_pred_embed  = distrib_regul_regression(predictions_embedded, lab_gather)
+# diverging_norm = mcolors.TwoSlopeNorm(
+#     vmin=lab_gather.min(), vcenter=0.5, vmax=lab_gather.max()
+# )
+# mapper = plt.cm.ScalarMappable(norm=diverging_norm)
+# colors = mapper.to_rgba(lab_gather.numpy())
 
-fig, ax = plt.subplots()
-sns.scatterplot(
-    x=predictions_embedded[:, 0], y=predictions_embedded[:, 1],
-    hue=category, s=55
-)
-start, end = compute_main_direction(predictions_embedded, y_pred_embed)
-ax.arrow(
-    start[0], start[1], end[0]-start[0], end[1]-start[1],
-    linewidth=3, head_width=10, head_length=10,
-    fc='#8B0000', ec='#8B0000', length_includes_head=True
-)
+# fig, ax = plt.subplots()
+# sns.scatterplot(
+#     x=predictions_embedded[:, 0], y=predictions_embedded[:, 1],
+#     hue=category, s=55
+# )
+# start, end = compute_main_direction(predictions_embedded, y_pred_embed)
+# ax.arrow(
+#     start[0], start[1], end[0]-start[0], end[1]-start[1],
+#     linewidth=3, head_width=10, head_length=10,
+#     fc='#8B0000', ec='#8B0000', length_includes_head=True
+# )
 
-maxabs = np.max(np.abs(predictions_embedded)) + 5
-plt.xlim([-maxabs, maxabs])
-plt.ylim([-maxabs, maxabs])
-ax.set_xticks([])
-ax.set_yticks([])
-ax.get_legend().remove()
+# maxabs = np.max(np.abs(predictions_embedded)) + 5
+# plt.xlim([-maxabs, maxabs])
+# plt.ylim([-maxabs, maxabs])
+# ax.set_xticks([])
+# ax.set_yticks([])
+# ax.get_legend().remove()
 
-plt.savefig('latent_space_tsne.png', dpi=150, bbox_inches='tight')
-plt.close()
-print("Figure sauvegardée : latent_space_tsne.png")
+# plt.savefig('latent_space_tsne.png', dpi=150, bbox_inches='tight')
+# plt.close()
+# print("Figure sauvegardée : latent_space_tsne.png")
