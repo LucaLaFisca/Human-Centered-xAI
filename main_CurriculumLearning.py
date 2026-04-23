@@ -208,7 +208,7 @@ metrics = [LossAttrMetric("adv_loss"), LossAttrMetric("recons_loss"),
            LossAttrMetric("classif_loss"), LossAttrMetric("crit_loss"),
            accuracy]
 monitor_loss = 'valid_loss'
-learn = Learner(dls, model, loss_func=model.classif_loss_func, metrics=metrics)
+learn = Learner(dls, model, loss_func=model.pure_classif_loss_func, metrics=metrics)
 lr_max = learn.lr_find().valley # Valeur au milieu de la pente descendante observée dans lr_find()
 model_file = 'CL_CLASSIF_model'
 learn.fit(EPOCHS_CLASSIF, lr=lr_max, #/LR_MAX_FACTOR
