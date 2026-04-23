@@ -103,3 +103,4 @@ learn.fit_one_cycle(EPOCHS, lr_max=lr_max, cbs=[
     SaveModelCallback(monitor='valid_loss', fname='best_celeba_classifier'),
     EarlyStoppingCallback(monitor='valid_loss', patience=PATIENCE)
 ])
+#test
