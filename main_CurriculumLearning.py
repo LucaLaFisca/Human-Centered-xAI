@@ -127,11 +127,12 @@ corruption_cb = CorruptionCallback(corruption_tfms=[noise_tfm, mask_tfm])
 # 2. CHARGEMENT DES DONNÉES CELEBA (RGB)
 # ==============================================================================
 # Remplace par ton chemin vers le dossier img_align_celeba dézippé
-path_imgs = Path('celeba_mini_clean/img_align_celeba') 
+path_imgs = Path('/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/img_align_celeba') 
 
 # 1. Charger le fichier de partition avec Pandas
 # sep='\s+' gère les espaces multiples de CelebA
-df_partition = pd.read_csv('celeba_mini_clean/list_eval_partition.txt', sep='\s+', header=None, names=['image_id', 'partition'])
+partition_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_eval_partition.txt'
+df_partition = pd.read_csv(partition_file, sep='\s+', header=None, names=['image_id', 'partition'])
 # On le transforme en dictionnaire pour que Fastai le lise instantanément
 # Format attendu : {'000001.jpg': 0, '000002.jpg': 1, ...}
 part_dict = dict(zip(df_partition['image_id'], df_partition['partition']))
@@ -229,7 +230,7 @@ learn = Learner(dls, model, loss_func=model.aae_loss_func, metrics=metrics)
 
 model_file = 'CL_AAE_model'
 learn.fit(EPOCHS_ADV, lr=lr/LR_MAX_FACTOR,
-            cbs=[GradientAccumulation(n_acc=4),
+            cbs=[GradientAccumulation(n_acc=16*4),
                  TrackerCallback(),
                  SaveModelCallback(fname=model_file),
                  EarlyStoppingCallback(min_delta=1e-4,patience=10),
