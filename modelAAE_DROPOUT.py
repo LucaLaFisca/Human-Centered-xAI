@@ -249,14 +249,32 @@ class AAE(nn.Module):
         return self.recons_loss 
 
     def pure_classif_loss_func(self, output, target, **kwargs):
-        return F.cross_entropy(output, target, **kwargs)
+        #On redéfinit la recon_loss
+        alpha = 0.84
+        l1_loss = F.l1_loss(self.decoder_output, clean_xb)
+        ms_ssim_val = ms_ssim(self.decoder_output, clean_xb, data_range=1.0, size_average=True)
+        msssim_loss = 1.0 - ms_ssim_val
+        self.recons_loss = alpha * msssim_loss + (1.0 - alpha) * l1_loss
+
+        #loss classif
+        self.classif_loss=F.cross_entropy(output, target, **kwargs)
+        loss= .85*self.recons_loss + .15*self.classif_loss
+        return loss
     
     def aae_loss_func(self, output, target):
+        
+        #On redéfinit la recon_loss
+        alpha = 0.84
+        l1_loss = F.l1_loss(self.decoder_output, clean_xb)
+        ms_ssim_val = ms_ssim(self.decoder_output, clean_xb, data_range=1.0, size_average=True)
+        msssim_loss = 1.0 - ms_ssim_val
+        self.recons_loss = alpha * msssim_loss + (1.0 - alpha) * l1_loss
+        #On redéfinit la classif_loss
+        self.classif_loss = F.cross_entropy(output, target, **kwargs)
+        #Loss adversarial
         adversarial_loss = nn.BCELoss()
         delta = .5
         huber = nn.HuberLoss(delta=delta)
-        self.recons_loss = huber(self.input_image, self.decoder_output)
-
         if self.gen_train: 
             valid = torch.ones_like(self.gan_fake, requires_grad=False).detach()
             self.adv_loss = adversarial_loss(self.gan_fake, valid)
@@ -270,9 +288,9 @@ class AAE(nn.Module):
             self.crit_loss = self.adv_loss
 
         bce = nn.BCEWithLogitsLoss()
-        self.classif_loss = bce(output, target)
-
-        loss = self.adv_loss + .1*self.recons_loss + .001*self.classif_loss
+        
+        #Somme pondéré des loss précedentes
+        loss = .05*self.adv_loss + .80*self.recons_loss + .15*self.classif_loss
             
         # if self.count_acc % 2 == 0:
         #     self.gen_train = False
