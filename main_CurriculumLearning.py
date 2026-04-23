@@ -179,26 +179,26 @@ model = AAE(
 # 4. ENTRAINEMENT DE L'AUTOENCODER
 #==============================================================================
 
-learn = Learner(
-    dls, model,
-    loss_func=AAEDenoisingLoss(),
-    metrics=[LossAttrMetric("recons_loss")],
-    cbs=[corruption_cb]
-)
-corruption_cb.learn = learn
+# learn = Learner(
+#     dls, model,
+#     loss_func=AAEDenoisingLoss(),
+#     metrics=[LossAttrMetric("recons_loss")],
+#     cbs=[corruption_cb]
+# )
+# corruption_cb.learn = learn
 
-print("Entraînement en cours...")
-print("Recherche du Learning Rate optimal...")
-lr_max = learn.lr_find().valley # Valeur au milieu de la pente descendante observée dans lr_find()
+# print("Entraînement en cours...")
+# print("Recherche du Learning Rate optimal...")
+# lr_max = learn.lr_find().valley # Valeur au milieu de la pente descendante observée dans lr_find()
 
-model_file = 'CL_AE_model'
-learn.fit_one_cycle(EPOCHS_AE, lr_max=lr_max,
-            cbs=[TrackerCallback(),
-                 SaveModelCallback(fname=model_file),
-                 EarlyStoppingCallback(min_delta=1e-4,patience=10)])
+# model_file = 'CL_AE_model'
+# learn.fit_one_cycle(EPOCHS_AE, lr_max=lr_max,
+#             cbs=[TrackerCallback(),
+#                  SaveModelCallback(fname=model_file),
+#                  EarlyStoppingCallback(min_delta=1e-4,patience=10)])
 
-state_dict = torch.load(f'models/{model_file}.pth')
-model.load_state_dict(state_dict, strict=False)
+# state_dict = torch.load(f'models/{model_file}.pth')
+# model.load_state_dict(state_dict, strict=False)
 
 #==============================================================================
 # 5. ENTRAINEMENT DU CLASSIFIEUR (en gardant les poids de l'AE)
@@ -209,9 +209,9 @@ metrics = [LossAttrMetric("adv_loss"), LossAttrMetric("recons_loss"),
            accuracy]
 monitor_loss = 'valid_loss'
 learn = Learner(dls, model, loss_func=model.classif_loss_func, metrics=metrics)
-
+lr_max = learn.lr_find().valley # Valeur au milieu de la pente descendante observée dans lr_find()
 model_file = 'CL_CLASSIF_model'
-learn.fit(EPOCHS_CLASSIF, lr=lr_max/LR_MAX_FACTOR,
+learn.fit(EPOCHS_CLASSIF, lr=lr_max, #/LR_MAX_FACTOR
             cbs=[GradientAccumulation(n_acc=16*4),
                  TrackerCallback(monitor=monitor_loss),
                  SaveModelCallback(fname=model_file,monitor=monitor_loss),
@@ -219,26 +219,26 @@ learn.fit(EPOCHS_CLASSIF, lr=lr_max/LR_MAX_FACTOR,
                #   FreezeDiscriminator()])
                  UnfreezeFcCritAdaptative()])
 
-lr= lr_max/LR_MAX_FACTOR
+#lr= lr_max/LR_MAX_FACTOR
 
 #==============================================================================
 # 6. ENTRAINEMENT ADVERSARIAL 
 #==============================================================================
-metrics = [LossAttrMetric("adv_loss"), LossAttrMetric("recons_loss"), LossAttrMetric("crit_loss"),
-           accuracy]
-learn = Learner(dls, model, loss_func=model.aae_loss_func, metrics=metrics)
+# metrics = [LossAttrMetric("adv_loss"), LossAttrMetric("recons_loss"), LossAttrMetric("crit_loss"),
+#            accuracy]
+# learn = Learner(dls, model, loss_func=model.aae_loss_func, metrics=metrics)
 
-model_file = 'CL_AAE_model'
-learn.fit(EPOCHS_ADV, lr=lr/LR_MAX_FACTOR,
-            cbs=[GradientAccumulation(n_acc=16*4),
-                 TrackerCallback(),
-                 SaveModelCallback(fname=model_file),
-                 EarlyStoppingCallback(min_delta=1e-4,patience=10),
-               #   FreezeDiscriminator()]),
-                 UnfreezeFcCritAdaptative()])
+# model_file = 'CL_AAE_model'
+# learn.fit(EPOCHS_ADV, lr=lr/LR_MAX_FACTOR,
+#             cbs=[GradientAccumulation(n_acc=16*4),
+#                  TrackerCallback(),
+#                  SaveModelCallback(fname=model_file),
+#                  EarlyStoppingCallback(min_delta=1e-4,patience=10),
+#                #   FreezeDiscriminator()]),
+#                  UnfreezeFcCritAdaptative()])
 
-state_dict = torch.load(f'models/{model_file}.pth')
-model.load_state_dict(state_dict, strict=False)
+# state_dict = torch.load(f'models/{model_file}.pth')
+# model.load_state_dict(state_dict, strict=False)
 
 
 #==============================================================================
