@@ -195,7 +195,7 @@ class AAE(nn.Module):
         encoding_dims=128,
         classes=2, 
         gen_train=True,
-        skip_dropout=0.5 # Remplacement du skip_weight par skip_dropout
+        skip_dropout=1 # Remplacement du skip_weight par skip_dropout 
     ):
         super(AAE, self).__init__()
 
@@ -248,34 +248,24 @@ class AAE(nn.Module):
         self.recons_loss = alpha * msssim_loss + (1.0 - alpha) * l1_loss
         return self.recons_loss 
 
-    # def pure_classif_loss_func(self, output, target, **kwargs):
-    #     #On redéfinit la recon_loss
-    #     # alpha = 0.84
-    #     # l1_loss = F.l1_loss(self.decoder_output, clean_xb)
-    #     # ms_ssim_val = ms_ssim(self.decoder_output, clean_xb, data_range=1.0, size_average=True)
-    #     # msssim_loss = 1.0 - ms_ssim_val
-    #     # self.recons_loss = alpha * msssim_loss + (1.0 - alpha) * l1_loss
-
-    #     #loss classif
-    #     self.classif_loss=F.cross_entropy(output, target, **kwargs)
-    #     # loss= .85*self.recons_loss + .15*self.classif_loss
-    #     return self.classif_loss
-    def pure_classif_loss_func(self, output, target, **kwargs):
-        return F.cross_entropy(output, target, **kwargs)
-    def aae_loss_func(self, output, target):
-        
-        #On redéfinit la recon_loss
+    def pure_classif_loss_func(self, RECONS_WEIGHT, CLASS_WEIGHT, output, target, **kwargs):
         alpha = 0.84
         l1_loss = F.l1_loss(self.decoder_output, clean_xb)
         ms_ssim_val = ms_ssim(self.decoder_output, clean_xb, data_range=1.0, size_average=True)
         msssim_loss = 1.0 - ms_ssim_val
         self.recons_loss = alpha * msssim_loss + (1.0 - alpha) * l1_loss
-        #On redéfinit la classif_loss
-        self.classif_loss = F.cross_entropy(output, target, **kwargs)
-        #Loss adversarial
+        return CLASS_WEIGHT*F.cross_entropy(output, target, **kwargs) + RECONS_WEIGHT*self.recons_loss
+    
+    def aae_loss_func(self, RECONS_WEIGHT, CLASS_WEIGHT, ADV_WEIGHT, output, target):
         adversarial_loss = nn.BCELoss()
-        delta = .5
-        huber = nn.HuberLoss(delta=delta)
+        #delta = .5
+        #huber = nn.HuberLoss(delta=delta)
+        alpha = 0.84
+        l1_loss = F.l1_loss(self.decoder_output, clean_xb)
+        ms_ssim_val = ms_ssim(self.decoder_output, clean_xb, data_range=1.0, size_average=True)
+        msssim_loss = 1.0 - ms_ssim_val
+        self.recons_loss = alpha * msssim_loss + (1.0 - alpha) * l1_loss
+
         if self.gen_train: 
             valid = torch.ones_like(self.gan_fake, requires_grad=False).detach()
             self.adv_loss = adversarial_loss(self.gan_fake, valid)
@@ -288,16 +278,16 @@ class AAE(nn.Module):
             self.adv_loss = 0.6 * self.real_loss + 0.4 * self.fake_loss
             self.crit_loss = self.adv_loss
 
-        bce = nn.BCEWithLogitsLoss()
-        
-        #Somme pondéré des loss précedentes
-        loss = .05*self.adv_loss + .80*self.recons_loss + .15*self.classif_loss
+        #ce = nn.BCEWithLogitsLoss()
+        self.classif_loss = F.cross_entropy(output, target, **kwargs)
+
+        loss = ADV_WEIGHT*self.adv_loss + RECONS_WEIGHT*self.recons_loss + CLASS_WEIGHT*self.classif_loss
             
-        # if self.count_acc % 2 == 0:
-        #     self.gen_train = False
-        # else:
-        #     self.gen_train = True
-        # self.count_acc += 1
+        #if self.count_acc % 2 == 0:
+        #    self.gen_train = False
+        #else:
+        #    self.gen_train = True
+        #self.count_acc += 1
             
         return loss
 
