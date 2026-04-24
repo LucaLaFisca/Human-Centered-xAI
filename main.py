@@ -23,7 +23,7 @@ EPOCHS_AE = 50
 EPOCHS_CLASSIF = 30
 EPOCHS_ADV = 30
 
-LR_MAX_FACTOR = 2 # par exemple 
+LR_MAX_FACTOR = 5 # par exemple 
 
 BATCH = 16
 ENCODING_DIM = 128
@@ -146,11 +146,12 @@ corruption_cb = CorruptionCallback(corruption_tfms=[noise_tfm, mask_tfm])
 # 2. CHARGEMENT DES DONNÉES CELEBA (RGB)
 # ==============================================================================
 # Remplace par ton chemin vers le dossier img_align_celeba dézippé
-path_imgs = Path('celeba_mini_clean/img_align_celeba') 
+path_imgs = Path('/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/img_align_celeba') 
 
+partition_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_eval_partition.txt'
 # 1. Charger le fichier de partition avec Pandas
 # sep='\s+' gère les espaces multiples de CelebA
-df_partition = pd.read_csv('celeba_mini_clean/list_eval_partition.txt', sep='\s+', header=None, names=['image_id', 'partition'])
+df_partition = pd.read_csv(partition_file, sep='\s+', header=None, names=['image_id', 'partition'])
 # On le transforme en dictionnaire pour que Fastai le lise instantanément
 # Format attendu : {'000001.jpg': 0, '000002.jpg': 1, ...}
 part_dict = dict(zip(df_partition['image_id'], df_partition['partition']))
