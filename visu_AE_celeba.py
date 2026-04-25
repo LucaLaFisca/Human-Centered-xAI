@@ -24,7 +24,7 @@ LOSS_ALPHA = 0.84
 NOISE_STD = 0.05
 PATIENCE = 10
 
-SKIP_DROPOUT = 0.5 
+SKIP_DROPOUT = 1
 
 # Dossier d'output (on peut réutiliser le dossier de l'entraînement ou un nouveau)
 timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -84,8 +84,10 @@ corruption_cb = CorruptionCallback(corruption_tfms=[noise_tfm, mask_tfm])
 # ==============================================================================
 # 2. CHARGEMENT DES DONNÉES ET MODÈLE
 # ==============================================================================
-path_imgs = Path('celeba_mini_clean/img_align_celeba') 
-df_partition = pd.read_csv('celeba_mini_clean/list_eval_partition.txt', sep='\s+', header=None, names=['image_id', 'partition'])
+path_imgs = Path('/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/img_align_celeba') 
+partition_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_eval_partition.txt'
+attr_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_attr_celeba.txt'
+df_partition = pd.read_csv(partition_file, sep='\s+', header=None, names=['image_id', 'partition'])
 part_dict = dict(zip(df_partition['image_id'], df_partition['partition']))
 
 def celeba_splitter(items):
