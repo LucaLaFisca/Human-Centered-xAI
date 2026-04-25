@@ -35,11 +35,11 @@ NOISE_STD = 0.05
 PATIENCE = 10
 
 # POIDS DES LOSS
-class_RECONS_WEIGHT = 0.01
-class_CLASS_WEIGHT = 0.99
-adv_RECONS_WEIGHT = 0.1
-adv_CLASS_WEIGHT = 0.2
-adv_ADV_WEIGHT = 0.7
+class_RECONS_WEIGHT = 0.65
+class_CLASS_WEIGHT = 0.35
+adv_RECONS_WEIGHT = 0.7
+adv_CLASS_WEIGHT = 0.05
+adv_ADV_WEIGHT = 0.25
  
 
 # Param de l'ADVERSARIAL
@@ -326,11 +326,79 @@ new_zi = torch.vstack((new_zi, learn.zi_valid))
 torch.save(new_zi, f'z_{ENCODING_DIM}.pt')
 print(f"Ze shape : {new_zi.shape}")
 
-# ── Labels depuis le DataLoader (alignés sur new_zi via drop_last) ───
-#train_labels = torch.cat([y for _, y in dls.train], dim=0)
-#valid_labels = torch.cat([y for _, y in dls.valid], dim=0)
-#lab_gather   = torch.cat([train_labels, valid_labels], dim=0)
+#==============================================================================
+# 7. EXTRACTION DE ZE, VISUALISATION, ET SAUVEGARDE FINALE
+#==============================================================================
+# #learn.load(f'models/{model_file}', strict=False)
+# learn.load(model_file, strict=False)
 
-#N_min      = min(len(lab_gather), len(new_zi))
-#lab_gather = lab_gather[:N_min, 1].float().cpu()  # 0.0=cat, 1.0=dog
-#category   = ['dog' if l == 1 else 'cat' for l in lab_gather.numpy()]
+# torch.save(model.state_dict(), f'models/{model_file}_{ENCODING_DIM}.pth')
+# print(f"PTH sauvegardé : models/{model_file}_{ENCODING_DIM}.pth")
+
+# # ── Extraire Ze et les cibles correspondantes ────────────────────────────────
+# dev = f'cuda:{torch.cuda.current_device()}'
+
+# # Train set
+# learn.zi_valid = torch.tensor([]).to(dev)
+# _, targs_train = learn.get_preds(ds_idx=0, cbs=[GetLatentSpace()])
+# zi_train = learn.zi_valid.clone()
+
+# # Validation set
+# learn.zi_valid = torch.tensor([]).to(dev)
+# _, targs_valid = learn.get_preds(ds_idx=1, cbs=[GetLatentSpace()])
+# zi_valid = learn.zi_valid.clone()
+
+# # Concaténation globale
+# new_zi = torch.vstack((zi_train, zi_valid))
+# all_targs = torch.cat((targs_train, targs_valid))
+
+# torch.save(new_zi, f'z_{ENCODING_DIM}.pt')
+# print(f"Ze shape : {new_zi.shape}")
+
+# # ── Traduction des labels via le vocabulaire du DataLoaders ──────────────────
+# vocab = dls_classif.vocab
+# labels_text = [vocab[t.item()] for t in all_targs]
+
+# # Nettoyage des labels : on traduit "Not Male" en "Female" pour un graphe plus clair
+# labels_text = ["Female" if l == "Not Male" else "Male" for l in labels_text]
+
+# # ── Génération du t-SNE (sans échantillonnage) ───────────────────────────────
+# print(f"Calcul du t-SNE sur {len(labels_text)} échantillons... (Attention, cela peut prendre beaucoup de temps)")
+
+# X_latent = new_zi.cpu().numpy()
+
+# # Application du t-SNE
+# tsne = TSNE(n_components=2, random_state=42)
+# X_tsne = tsne.fit_transform(X_latent)
+
+# # Préparation du DataFrame pour Seaborn
+# df_tsne = pd.DataFrame({
+#     'Dim_1': X_tsne[:, 0],
+#     'Dim_2': X_tsne[:, 1],
+#     'Genre': labels_text
+# })
+
+# # ── Affichage et Sauvegarde du Graphe ────────────────────────────────────────
+# plt.figure(figsize=(12, 10))
+
+# sns.scatterplot(
+#     data=df_tsne,
+#     x='Dim_1',
+#     y='Dim_2',
+#     hue='Genre',
+#     palette={'Male': '#1f77b4', 'Female': '#d62728'}, # Bleu pour Male, Rouge pour Female
+#     s=5,       # Petits points pour éviter de surcharger le graphe
+#     alpha=0.5, # Transparence pour visualiser les zones de forte densité
+#     linewidth=0
+# )
+
+# plt.title(f"Espace Latent t-SNE (AAE) - {ENCODING_DIM} dimensions", fontsize=14)
+# plt.xlabel("t-SNE Dimension 1")
+# plt.ylabel("t-SNE Dimension 2")
+
+# # Le dossier OUT_DIR a déjà été créé à l'étape 0 de ton script
+# plot_path = OUT_DIR / f"tsne_latent_space_{ENCODING_DIM}.png"
+# plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+# plt.close()
+
+# print(f"Graphique t-SNE généré et sauvegardé avec succès dans : {plot_path}")
