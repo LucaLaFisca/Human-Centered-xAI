@@ -17,7 +17,7 @@ from utils import label_func # (et autres imports si nécessaires pour dls)
 # ==============================================================================
 EPOCHS = 30
 BATCH_SIZE = 16
-ENCODING_DIM = 256
+ENCODING_DIM = 128
 PATIENCE = 5
 TARGET_ATTRIBUTE = 'Male' # L'attribut CelebA que tu souhaites classifier
 AAE_MODEL_NAME = 'CL_AAE_model' # Nom du modèle sauvegardé à charger
