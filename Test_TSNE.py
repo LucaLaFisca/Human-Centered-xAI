@@ -1,0 +1,150 @@
+import torch
+from fastai.vision.all import *
+from fastai.data.all import *
+from pathlib import Path
+import pandas as pd
+from sklearn.manifold import TSNE
+import matplotlib.pyplot as plt
+import seaborn as sns
+import datetime
+
+from modelAAE_DROPOUT import AAE
+from utils import GetLatentSpace
+
+# ==============================================================================
+# 1. CONFIGURATION
+# ==============================================================================
+BATCH = 16
+ENCODING_DIM = 128
+TARGET_ATTRIBUTE = 'Male'
+
+# Le nom du modèle que tu veux charger (sans le .pth, géré par fastai)
+MODEL_WEIGHTS = 'CL_AAE_model' 
+
+# Création d'un dossier de résultats spécifique pour le t-SNE
+timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+OUT_DIR = Path(f"CL_results/tsne_visu_{timestamp}")
+OUT_DIR.mkdir(parents=True, exist_ok=True)
+
+# ==============================================================================
+# 2. CHARGEMENT DES DONNÉES ET LABELS (Mode Classification)
+# ==============================================================================
+path_imgs = Path('/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/img_align_celeba') 
+partition_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_eval_partition.txt'
+attr_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_attr_celeba.txt'
+
+# --- Partitions ---
+df_partition = pd.read_csv(partition_file, sep='\s+', header=None, names=['image_id', 'partition'])
+part_dict = dict(zip(df_partition['image_id'], df_partition['partition']))
+
+# --- Attributs (Directement formatés en Male/Female pour le graphe) ---
+df_attr = pd.read_csv(attr_file, sep='\s+', header=1)
+attr_dict = {
+    img_name: "Female" if val == -1 else "Male" 
+    for img_name, val in zip(df_attr.index, df_attr[TARGET_ATTRIBUTE])
+}
+
+def get_celeba_label(x):
+    return attr_dict.get(x.name)
+
+def celeba_splitter(items):
+    train_idx, valid_idx = [], []
+    for i, item in enumerate(items):
+        part = part_dict.get(item.name)
+        if part == 0: train_idx.append(i)
+        elif part == 1: valid_idx.append(i)
+    return train_idx, valid_idx
+
+print("Création du DataLoader...")
+dblock_classif = DataBlock(
+    blocks=(ImageBlock, CategoryBlock), 
+    get_items=get_image_files,
+    get_y=get_celeba_label,      
+    splitter=celeba_splitter,
+    item_tfms=Resize(256, method=ResizeMethod.Pad, pad_mode=PadMode.Zeros)
+)
+dls = dblock_classif.dataloaders(path_imgs, bs=BATCH, num_workers=0)
+
+# ==============================================================================
+# 3. INITIALISATION ET CHARGEMENT DU MODÈLE
+# ==============================================================================
+print(f"Chargement du modèle {MODEL_WEIGHTS}...")
+model = AAE(
+    input_size=256,
+    input_channels=3, 
+    encoding_dims=ENCODING_DIM
+)
+
+# On instancie un Learner simplement pour utiliser la méthode get_preds()
+learn = Learner(dls, model)
+
+# Chargement des poids du modèle sauvegardé
+learn.load(MODEL_WEIGHTS, strict=False)
+learn.model.eval()
+
+# ==============================================================================
+# 4. EXTRACTION DE L'ESPACE LATENT ET DES LABELS
+# ==============================================================================
+dev = f'cuda:{torch.cuda.current_device()}' if torch.cuda.is_available() else 'cpu'
+
+print("Extraction des vecteurs sur le set d'entraînement...")
+learn.zi_valid = torch.tensor([]).to(dev)
+_, targs_train = learn.get_preds(ds_idx=0, cbs=[GetLatentSpace()])
+zi_train = learn.zi_valid.clone()
+
+print("Extraction des vecteurs sur le set de validation...")
+learn.zi_valid = torch.tensor([]).to(dev)
+_, targs_valid = learn.get_preds(ds_idx=1, cbs=[GetLatentSpace()])
+zi_valid = learn.zi_valid.clone()
+
+# Concaténation
+new_zi = torch.vstack((zi_train, zi_valid))
+all_targs = torch.cat((targs_train, targs_valid))
+
+print(f"Extraction terminée. Shape de l'espace latent : {new_zi.shape}")
+
+# Traduction des identifiants tensoriels en textes (Male/Female) via le vocabulaire
+vocab = dls.vocab
+labels_text = [vocab[t.item()] for t in all_targs]
+
+# ==============================================================================
+# 5. CALCUL DU T-SNE
+# ==============================================================================
+print(f"Calcul du t-SNE sur {len(labels_text)} échantillons... (Patientez)")
+X_latent = new_zi.cpu().numpy()
+
+tsne = TSNE(n_components=2, random_state=42)
+X_tsne = tsne.fit_transform(X_latent)
+
+df_tsne = pd.DataFrame({
+    'Dim_1': X_tsne[:, 0],
+    'Dim_2': X_tsne[:, 1],
+    'Genre': labels_text
+})
+
+# ==============================================================================
+# 6. VISUALISATION ET SAUVEGARDE
+# ==============================================================================
+print("Génération du graphique...")
+plt.figure(figsize=(12, 10))
+
+sns.scatterplot(
+    data=df_tsne,
+    x='Dim_1',
+    y='Dim_2',
+    hue='Genre',
+    palette={'Male': '#1f77b4', 'Female': '#d62728'},
+    s=5,
+    alpha=0.5,
+    linewidth=0
+)
+
+plt.title(f"Espace Latent t-SNE (AAE) - {ENCODING_DIM} dimensions", fontsize=14)
+plt.xlabel("t-SNE Dimension 1")
+plt.ylabel("t-SNE Dimension 2")
+
+plot_path = OUT_DIR / f"tsne_latent_space_{ENCODING_DIM}.png"
+plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+plt.close()
+
+print(f"Graphique t-SNE généré et sauvegardé avec succès dans : {plot_path}")
