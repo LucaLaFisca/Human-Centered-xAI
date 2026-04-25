@@ -20,7 +20,7 @@ BATCH_SIZE = 16
 ENCODING_DIM = 256
 PATIENCE = 5
 TARGET_ATTRIBUTE = 'Male' # L'attribut CelebA que tu souhaites classifier
-AAE_MODEL_NAME = ??? # Nom du modèle sauvegardé à charger
+AAE_MODEL_NAME = 'CL_AAE_model' # Nom du modèle sauvegardé à charger
 
 path_imgs = Path('celeba_mini_clean/img_align_celeba') 
 
