@@ -15,10 +15,11 @@ import matplotlib.colors as mcolors
 import seaborn as sns
 
 
-
 # ==============================================================================
 # 0. CONFIGURATION ET HYPERPARAMÈTRES
 # ==============================================================================
+TARGET_ATTRIBUTE = 'Male' 
+
 EPOCHS_AE = 50
 EPOCHS_CLASSIF = 30
 EPOCHS_ADV = 30
@@ -34,19 +35,18 @@ NOISE_STD = 0.05
 PATIENCE = 10
 
 # POIDS DES LOSS
-class_RECONS_WEIGHT = 0.1
-class_CLASS_WEIGHT = 0.9
-adv_RECONS_WEIGHT = 0.04
-adv_CLASS_WEIGHT = 0.01
-adv_ADV_WEIGHT = 0.95
-
+class_RECONS_WEIGHT = 0.01
+class_CLASS_WEIGHT = 0.99
+adv_RECONS_WEIGHT = 0.1
+adv_CLASS_WEIGHT = 0.2
+adv_ADV_WEIGHT = 0.7
+ 
 
 # Param de l'ADVERSARIAL
 LOW_TESH = 0.65
 HIGH_TESH = 0.80
 
 # Dossier d'output
-
 RUN_NAME = (
     f"CL_celeba_aae_"
     f"lr{str(LR_MAX_FACTOR).replace('.', 'p')}_"
@@ -143,46 +143,47 @@ mask_tfm = RandomMasking(mask_ratio=MASK_RATIO, patch_size=PATCH_SIZE)
 corruption_cb = CorruptionCallback(corruption_tfms=[noise_tfm, mask_tfm])
 
 # ==============================================================================
-# 2. CHARGEMENT DES DONNÉES CELEBA (RGB)
+# 2. CHARGEMENT DES DONNÉES CELEBA (RGB) ET LABELS
 # ==============================================================================
-# Remplace par ton chemin vers le dossier img_align_celeba dézippé
 path_imgs = Path('/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/img_align_celeba') 
 
 partition_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_eval_partition.txt'
-# 1. Charger le fichier de partition avec Pandas
-# sep='\s+' gère les espaces multiples de CelebA
+# --- A. Chargement de la partition ---
 df_partition = pd.read_csv(partition_file, sep='\s+', header=None, names=['image_id', 'partition'])
-# On le transforme en dictionnaire pour que Fastai le lise instantanément
-# Format attendu : {'000001.jpg': 0, '000002.jpg': 1, ...}
 part_dict = dict(zip(df_partition['image_id'], df_partition['partition']))
 
-# 2. Créer le Splitter sur mesure
+# --- B. Chargement de l'attribut cible ---
+attr_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_attr_celeba.txt'
+df_attr = pd.read_csv(attr_file, sep='\s+', header=1)
+
+attr_dict = {
+    img_name: f"Not {TARGET_ATTRIBUTE}" if val == -1 else TARGET_ATTRIBUTE 
+    for img_name, val in zip(df_attr.index, df_attr[TARGET_ATTRIBUTE])
+}
+
+def get_celeba_label(x):
+    return attr_dict.get(x.name)
+
 def celeba_splitter(items):
     train_idx, valid_idx = [], []
     for i, item in enumerate(items):
         part = part_dict.get(item.name)
         if part == 0:
-            train_idx.append(i)  # 0 : Training
+            train_idx.append(i)
         elif part == 1:
-            valid_idx.append(i)  # 1 : Validation
-        # Si part == 2 (Test), on l'ignore silencieusement. 
-        # Il ne polluera ni le train ni le valid de l'AE.
+            valid_idx.append(i)
     return train_idx, valid_idx
 
-# 3. L'intégrer dans ton DataBlock actuel
-# La transformation exacte pour préserver l'alignement
-# Fastai va redimensionner l'image sans la déformer, puis ajouter des bordures noires
-# pour atteindre un carré parfait de 256x256.
-align_resize = Resize(256, method=ResizeMethod.Pad, pad_mode=PadMode.Zeros)
-dblock = DataBlock(
+# --- C. DataBlock de l'Autoencodeur (Utilisé à l'étape 4) ---
+dblock_ae = DataBlock(
     blocks=(ImageBlock, ImageBlock), 
     get_items=get_image_files,
     get_y=lambda x: x,
-    splitter=celeba_splitter,  # <--- NOUVEAU SPLITTER
+    splitter=celeba_splitter, 
     item_tfms=Resize(256, method=ResizeMethod.Pad, pad_mode=PadMode.Zeros)
 )
 
-dls = dblock.dataloaders(path_imgs, bs=BATCH, num_workers=0)
+dls_ae = dblock_ae.dataloaders(path_imgs, bs=BATCH, num_workers=0)
 
 # ==============================================================================
 # 3. INITIALISATION DU MODÈLE ET ENTRAÎNEMENT
@@ -196,20 +197,19 @@ model = AAE(
 #==============================================================================
 # 4. ENTRAINEMENT DE L'AUTOENCODER
 #==============================================================================
-
 learn = Learner(
-    dls, model,
+    dls_ae, model,
     loss_func=AAEDenoisingLoss(),
     metrics=[LossAttrMetric("recons_loss")],
     cbs=[corruption_cb]
 )
 corruption_cb.learn = learn
 
-print("Entraînement en cours...")
 print("Recherche du Learning Rate optimal...")
 lr_max = learn.lr_find().valley # Valeur au milieu de la pente descendante observée dans lr_find()
 
 model_file = 'CL_AE_model'
+print(f"Entraînement de l'autoencodeur avec lr_max={lr_max:.2e}...")
 learn.fit_one_cycle(EPOCHS_AE, lr_max=lr_max,
             cbs=[TrackerCallback(),
                  SaveModelCallback(fname=model_file),
@@ -222,43 +222,82 @@ model.load_state_dict(state_dict, strict=False)
 #==============================================================================
 # 5. ENTRAINEMENT DU CLASSIFIEUR (en gardant les poids de l'AE)
 #==============================================================================
+print("Création du DataLoaders de classification...")
 
-metrics = [#LossAttrMetric("adv_loss"), 
-           LossAttrMetric("recons_loss"),
+# --- Création du DataBlock spécifique à la classification ---
+dblock_classif = DataBlock(
+    blocks=(ImageBlock, CategoryBlock), 
+    get_items=get_image_files,
+    get_y=get_celeba_label,      
+    splitter=celeba_splitter,
+    item_tfms=Resize(256, method=ResizeMethod.Pad, pad_mode=PadMode.Zeros)
+)
+dls_classif = dblock_classif.dataloaders(path_imgs, bs=BATCH, num_workers=0)
+
+print("Entraînement du classifieur...")
+
+class ClassifLoss:
+    def __init__(self, recons_weight, class_weight):
+        self.recons_weight = recons_weight
+        self.class_weight = class_weight
+        
+    def __call__(self, pred, *yb):
+        return model.classif_loss_func(pred, *yb, 
+                                            RECONS_WEIGHT=self.recons_weight, 
+                                            CLASS_WEIGHT=self.class_weight)
+
+classif_loss = ClassifLoss(class_RECONS_WEIGHT, class_CLASS_WEIGHT)
+
+metrics = [LossAttrMetric("recons_loss"),
            LossAttrMetric("classif_loss"),
-           #LossAttrMetric("crit_loss"),
-           accuracy] # formule de accuracy = nombre de prédictions correctes / nombre total d'exemples
+           accuracy]
+
 monitor_loss = 'valid_loss'
-learn = Learner(dls, model, loss_func=model.pure_classif_loss_func(RECONS_WEIGHT=class_RECONS_WEIGHT, CLASS_WEIGHT=class_CLASS_WEIGHT), metrics=metrics)
+
+learn = Learner(dls_classif, model, loss_func=classif_loss, metrics=metrics)
 
 model_file = 'CL_CLASSIF_model'
 learn.fit(EPOCHS_CLASSIF, lr=lr_max/LR_MAX_FACTOR,
             cbs=[GradientAccumulation(n_acc=4),
                  TrackerCallback(monitor=monitor_loss),
                  SaveModelCallback(fname=model_file,monitor=monitor_loss),
-                 EarlyStoppingCallback(min_delta=1e-4,patience=10,monitor=monitor_loss),
-               #   FreezeDiscriminator()])
-                ])
+                 EarlyStoppingCallback(min_delta=1e-4,patience=PATIENCE,monitor=monitor_loss)])
 
 lr= lr_max/LR_MAX_FACTOR
 
 #==============================================================================
 # 6. ENTRAINEMENT ADVERSARIAL 
 #==============================================================================
+print("Entraînement adversarial...")
+
+class AAELoss:
+    def __init__(self, recons_weight, class_weight, adv_weight):
+        self.recons_weight = recons_weight
+        self.class_weight = class_weight
+        self.adv_weight = adv_weight
+        
+    def __call__(self, pred, *yb):
+        return model.aae_loss_func(pred, *yb, 
+                                   RECONS_WEIGHT=self.recons_weight,
+                                   CLASS_WEIGHT=self.class_weight,
+                                   ADV_WEIGHT=self.adv_weight)
+
+aae_loss = AAELoss(adv_RECONS_WEIGHT, adv_CLASS_WEIGHT, adv_ADV_WEIGHT)
+
 metrics = [LossAttrMetric("adv_loss"),
            LossAttrMetric("recons_loss"),
            LossAttrMetric("classif_loss"),
-           accuracy
-           ]
-learn = Learner(dls, model, loss_func=model.aae_loss_func(RECONS_WEIGHT=adv_RECONS_WEIGHT, CLASS_WEIGHT=adv_CLASS_WEIGHT, ADV_WEIGHT=adv_ADV_WEIGHT), metrics=metrics)
+           accuracy]
+
+# Injection de dls_classif ici aussi
+learn = Learner(dls_classif, model, loss_func=aae_loss, metrics=metrics)
 
 model_file = 'CL_AAE_model'
 learn.fit(EPOCHS_ADV, lr=lr/LR_MAX_FACTOR,
             cbs=[GradientAccumulation(n_acc=4),
                  TrackerCallback(),
                  SaveModelCallback(fname=model_file),
-                 EarlyStoppingCallback(min_delta=1e-4,patience=10),
-               #   FreezeDiscriminator()]),
+                 EarlyStoppingCallback(min_delta=1e-4,patience=PATIENCE),
                  UnfreezeFcCritAdaptative(low_threshold=LOW_TESH, high_threshold=HIGH_TESH)])
 
 state_dict = torch.load(f'models/{model_file}.pth')
