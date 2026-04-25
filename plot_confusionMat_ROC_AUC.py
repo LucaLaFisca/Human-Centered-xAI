@@ -20,7 +20,7 @@ BATCH_SIZE = 16
 ENCODING_DIM = 128
 PATIENCE = 5
 TARGET_ATTRIBUTE = 'Male' # L'attribut CelebA que tu souhaites classifier
-AAE_MODEL_NAME = 'CL_AAE_model' # Nom du modèle sauvegardé à charger
+AAE_MODEL_NAME = "CL_AAE_model_128" # Nom du modèle sauvegardé à charger
 
 path_imgs = Path('/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/img_align_celeba') 
 partition_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_eval_partition.txt'
@@ -79,7 +79,7 @@ print("Initialisation de l'architecture...")
 model = AAE(
     input_size=256,
     input_channels=3, 
-    encoding_dims=256,
+    encoding_dims=ENCODING_DIM,
     classes=2,        
 )
 
