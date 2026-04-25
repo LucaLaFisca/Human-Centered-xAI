@@ -9,7 +9,7 @@ from fastai.torch_core import TensorBase
 
 # Détection de l'accélérateur matériel
 if torch.cuda.is_available():
-    dev = torch.device("cuda") 
+    dev = torch.device("cuda")
 elif torch.backends.mps.is_available():
     dev = torch.device("mps")
 else:
@@ -241,6 +241,8 @@ class AAE(nn.Module):
         return x
     
     def denoising_ae_loss_func(self, clean_xb, pred, yb):
+        # pred et yb sont ignorés car cette fonction est dédiée au pré-entraînement de l'AE en mode débruitage
+        # Fastai attend une signature de fonction de perte avec ces arguments, même si on ne les utilise pas tous
         alpha = 0.84
         l1_loss = F.l1_loss(self.decoder_output, clean_xb)
         ms_ssim_val = ms_ssim(self.decoder_output, clean_xb, data_range=1.0, size_average=True)
@@ -248,21 +250,26 @@ class AAE(nn.Module):
         self.recons_loss = alpha * msssim_loss + (1.0 - alpha) * l1_loss
         return self.recons_loss 
 
-    def pure_classif_loss_func(self, RECONS_WEIGHT, CLASS_WEIGHT, output, target, **kwargs):
+    def classif_loss_func(self, output, target, RECONS_WEIGHT, CLASS_WEIGHT, **kwargs):
         alpha = 0.84
-        l1_loss = F.l1_loss(self.decoder_output, clean_xb)
-        ms_ssim_val = ms_ssim(self.decoder_output, clean_xb, data_range=1.0, size_average=True)
+        # On utilise self.input_image car il n'y a pas de corruption ici
+        l1_loss = F.l1_loss(self.decoder_output, self.input_image)
+        ms_ssim_val = ms_ssim(self.decoder_output, self.input_image, data_range=1.0, size_average=True)
         msssim_loss = 1.0 - ms_ssim_val
         self.recons_loss = alpha * msssim_loss + (1.0 - alpha) * l1_loss
-        return CLASS_WEIGHT*F.cross_entropy(output, target, **kwargs) + RECONS_WEIGHT*self.recons_loss
+
+        # LOn sauvegarde l'attribut pour LossAttrMetric
+        self.classif_loss = F.cross_entropy(output, target, **kwargs)
+        
+        return CLASS_WEIGHT * F.cross_entropy(output, target, **kwargs) + RECONS_WEIGHT * self.recons_loss
     
-    def aae_loss_func(self, RECONS_WEIGHT, CLASS_WEIGHT, ADV_WEIGHT, output, target):
+    def aae_loss_func(self, output, target, RECONS_WEIGHT, CLASS_WEIGHT, ADV_WEIGHT, **kwargs):
         adversarial_loss = nn.BCELoss()
-        #delta = .5
-        #huber = nn.HuberLoss(delta=delta)
         alpha = 0.84
-        l1_loss = F.l1_loss(self.decoder_output, clean_xb)
-        ms_ssim_val = ms_ssim(self.decoder_output, clean_xb, data_range=1.0, size_average=True)
+        
+        # On utilise self.input_image ici aussi
+        l1_loss = F.l1_loss(self.decoder_output, self.input_image)
+        ms_ssim_val = ms_ssim(self.decoder_output, self.input_image, data_range=1.0, size_average=True)
         msssim_loss = 1.0 - ms_ssim_val
         self.recons_loss = alpha * msssim_loss + (1.0 - alpha) * l1_loss
 
@@ -278,16 +285,9 @@ class AAE(nn.Module):
             self.adv_loss = 0.6 * self.real_loss + 0.4 * self.fake_loss
             self.crit_loss = self.adv_loss
 
-        #ce = nn.BCEWithLogitsLoss()
         self.classif_loss = F.cross_entropy(output, target, **kwargs)
 
-        loss = ADV_WEIGHT*self.adv_loss + RECONS_WEIGHT*self.recons_loss + CLASS_WEIGHT*self.classif_loss
-            
-        #if self.count_acc % 2 == 0:
-        #    self.gen_train = False
-        #else:
-        #    self.gen_train = True
-        #self.count_acc += 1
+        loss = ADV_WEIGHT * self.adv_loss + RECONS_WEIGHT * self.recons_loss + CLASS_WEIGHT * self.classif_loss
             
         return loss
 
