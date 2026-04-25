@@ -34,13 +34,13 @@ partition_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_e
 attr_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_attr_celeba.txt'
 
 # --- Partitions ---
-df_partition = pd.read_csv(partition_file, sep='\s+', header=None, names=['image_id', 'partition'])
+df_partition = pd.read_csv(partition_file, sep=r'\s+', header=None, names=['image_id', 'partition'])
 part_dict = dict(zip(df_partition['image_id'], df_partition['partition']))
 
-# --- Attributs (Directement formatés en Male/Female pour le graphe) ---
-df_attr = pd.read_csv(attr_file, sep='\s+', header=1)
+# --- Attributs ---
+df_attr = pd.read_csv(attr_file, sep=r'\s+', header=1)
 attr_dict = {
-    img_name: "Female" if val == -1 else "Male" 
+    img_name: 'Female' if val == -1 else 'Male' 
     for img_name, val in zip(df_attr.index, df_attr[TARGET_ATTRIBUTE])
 }
 
@@ -72,7 +72,8 @@ print(f"Chargement du modèle {MODEL_WEIGHTS}...")
 model = AAE(
     input_size=256,
     input_channels=3, 
-    encoding_dims=ENCODING_DIM
+    encoding_dims=ENCODING_DIM,
+    classes=2
 )
 
 # On instancie un Learner simplement pour utiliser la méthode get_preds()
@@ -83,25 +84,28 @@ learn.load(MODEL_WEIGHTS, strict=False)
 learn.model.eval()
 
 # ==============================================================================
-# 4. EXTRACTION DE L'ESPACE LATENT ET DES LABELS
+# 4. EXTRACTION DE L'ESPACE LATENT ET DES LABELS SUR LE SET DE TEST
 # ==============================================================================
+# 4.1 Préparation du DataLoader de Test
+print("Préparation du DataLoader de Test...")
+items = get_image_files(path_imgs)
+test_items = [item for item in items if part_dict.get(item.name) == 2]
+
+# On crée un DataLoader de test rattaché au dls principal (pour hériter du vocabulaire)
+test_dl = dls.test_dl(test_items, with_labels=True)
+
 dev = f'cuda:{torch.cuda.current_device()}' if torch.cuda.is_available() else 'cpu'
 
-print("Extraction des vecteurs sur le set d'entraînement...")
+# 4.2 Extraction avec le callback GetLatentSpace
+print("Extraction des vecteurs sur le set de test...")
 learn.zi_valid = torch.tensor([]).to(dev)
-_, targs_train = learn.get_preds(ds_idx=0, cbs=[GetLatentSpace()])
-zi_train = learn.zi_valid.clone()
 
-print("Extraction des vecteurs sur le set de validation...")
-learn.zi_valid = torch.tensor([]).to(dev)
-_, targs_valid = learn.get_preds(ds_idx=1, cbs=[GetLatentSpace()])
-zi_valid = learn.zi_valid.clone()
+# Au lieu d'utiliser ds_idx, on passe directement notre test_dl via l'argument 'dl'
+_, all_targs = learn.get_preds(dl=test_dl, cbs=[GetLatentSpace()])
 
-# Concaténation
-new_zi = torch.vstack((zi_train, zi_valid))
-all_targs = torch.cat((targs_train, targs_valid))
+new_zi = learn.zi_valid.clone()
 
-print(f"Extraction terminée. Shape de l'espace latent : {new_zi.shape}")
+print(f"Extraction terminée. Shape de l'espace latent (Test) : {new_zi.shape}")
 
 # Traduction des identifiants tensoriels en textes (Male/Female) via le vocabulaire
 vocab = dls.vocab
