@@ -22,7 +22,9 @@ PATIENCE = 5
 TARGET_ATTRIBUTE = 'Male' # L'attribut CelebA que tu souhaites classifier
 AAE_MODEL_NAME = 'CL_AAE_model' # Nom du modèle sauvegardé à charger
 
-path_imgs = Path('celeba_mini_clean/img_align_celeba') 
+path_imgs = Path('/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/img_align_celeba') 
+partition_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_eval_partition.txt'
+attr_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_attr_celeba.txt'
 
 # ==============================================================================
 # 1. PRÉPARATION DES DONNÉES ET LABELS (CELEBA)
@@ -30,7 +32,7 @@ path_imgs = Path('celeba_mini_clean/img_align_celeba')
 # Chargement du fichier des attributs de CelebA. 
 # Les valeurs sont 1 (présent) ou -1 (absent). Fastai gère mieux les catégories 
 # textuelles ou les entiers positifs (0, 1).
-df_attr = pd.read_csv('celeba_mini_clean/list_attr_celeba.txt', sep='\s+', header=1)
+df_attr = pd.read_csv(attr_file, sep='\s+', header=1)
 
 # Création d'un dictionnaire pour un mapping O(1) lors du chargement des images
 # On convertit les 1/-1 en chaînes de caractères pour que Fastai crée automatiquement 
@@ -46,7 +48,7 @@ def get_celeba_label(img_path):
 
 # On réutilise ton système de partition pour s'assurer que le classifieur
 # est entraîné et validé sur les mêmes ensembles que l'AE.
-df_partition = pd.read_csv('celeba_mini_clean/list_eval_partition.txt', sep='\s+', header=None, names=['image_id', 'partition'])
+df_partition = pd.read_csv(partition_file, sep='\s+', header=None, names=['image_id', 'partition'])
 part_dict = dict(zip(df_partition['image_id'], df_partition['partition']))
 
 def celeba_splitter(items):
