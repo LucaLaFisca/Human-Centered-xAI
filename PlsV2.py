@@ -9,6 +9,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import datetime
 import numpy as np 
+import scipy.stats as stats
+
 
 from modelAAE_DROPOUT import AAE
 from utils import GetLatentSpace
@@ -128,58 +130,97 @@ Z_supervised = pls.transform(Z_all)
 print("  Modèle PLS entraîné et données transformées avec succès.")
 
 
-# ==============================================================================
-# 6. VISUALISATION DU NUAGE DE POINTS (PLS LATENT SPACE)
-# ==============================================================================
-print("▶ Génération du graphique de l'espace latent PLS 2D...")
+import scipy.stats as stats
 
-plt.figure(figsize=(10, 8), facecolor='#161b22')
+# ==============================================================================
+# 6. VISUALISATION TYPE "BIOMARKERS" (BIPLOT PLS + VECTEURS DE PEARSON)
+# ==============================================================================
+print("▶ Génération du graphique PLS (Biplot avec vecteurs de Pearson)...")
+
+# --- 6.1 Préparation des données d'attributs ---
+test_img_names = [item.name for item in test_items]
+df_test_attrs = df_attr.loc[test_img_names]
+
+# Liste des attributs (biomarqueurs) à projeter dans l'espace
+# Vous pouvez ajouter d'autres colonnes de list_attr_celeba.txt ici
+attributes_to_project = ['Smiling', 'Young', 'Eyeglasses', 'Blond_Hair', 'No_Beard', TARGET_ATTRIBUTE]
+
+# --- 6.2 Calcul des vecteurs de Pearson ---
+pearson_vectors = {}
+for attr in attributes_to_project:
+    true_values = df_test_attrs[attr].values
+    
+    # Corrélation avec la Composante PLS 1 (Axe X)
+    r_x, _ = stats.pearsonr(Z_supervised[:, 0], true_values)
+    # Corrélation avec la Composante PLS 2 (Axe Y)
+    r_y, _ = stats.pearsonr(Z_supervised[:, 1], true_values)
+    
+    # On stocke le vecteur directionnel
+    pearson_vectors[attr] = (r_x, r_y)
+
+# --- 6.3 Création du graphique ---
+plt.figure(figsize=(12, 10), facecolor='#161b22')
 ax = plt.gca()
 ax.set_facecolor('#0e1117')
 
 mask_target = (target_score == 1)
 
-# Tracé des points "Absents" (Female)
+# Tracé du nuage de points (avec transparence augmentée pour bien voir les flèches)
 plt.scatter(Z_supervised[~mask_target, 0], Z_supervised[~mask_target, 1], 
-            alpha=0.6, label=f"Not {TARGET_ATTRIBUTE}", c='#58a6ff', s=15, edgecolors='none')
-
-# Tracé des points "Présents" (Male)
+            alpha=0.3, label=f"Not {TARGET_ATTRIBUTE}", c='#58a6ff', s=15, edgecolors='none')
 plt.scatter(Z_supervised[mask_target, 0], Z_supervised[mask_target, 1], 
-            alpha=0.6, label=f"{TARGET_ATTRIBUTE}", c='#ff7b72', s=15, edgecolors='none')
+            alpha=0.3, label=f"{TARGET_ATTRIBUTE}", c='#ff7b72', s=15, edgecolors='none')
 
-# --- TRACÉ DU VECTEUR DE DIRECTION LATENT ---
+# --- 6.4 Tracé des vecteurs de corrélation (Flèches) ---
+# Facteur d'échelle : Les coefficients de Pearson vont de -1 à 1.
+# On les multiplie pour qu'ils prennent environ 80% de la taille du graphique.
+scale_factor = max(np.max(np.abs(Z_supervised[:, 0])), np.max(np.abs(Z_supervised[:, 1]))) * 0.8
 mean_x, mean_y = np.mean(Z_supervised[:, 0]), np.mean(Z_supervised[:, 1])
-std_x = np.std(Z_supervised[:, 0])
 
-# La direction latente est alignée sur l'axe X (Composante 1)
-plt.arrow(mean_x, mean_y, std_x * 2.5, 0, 
-          color='#3fb950', width=0.02 * np.std(Z_supervised[:, 1]), 
-          head_width=0.2 * np.std(Z_supervised[:, 1]), 
-          head_length=0.3 * std_x, zorder=5)
+for attr, (r_x, r_y) in pearson_vectors.items():
+    # Mise en évidence de l'attribut cible principal
+    is_target = (attr == TARGET_ATTRIBUTE)
+    color = '#3fb950' if is_target else '#f0e68c' # Vert pour la cible, Jaune pour les autres
+    linewidth = 2.5 if is_target else 1.5
+    
+    # Calcul des coordonnées finales de la flèche
+    dx = r_x * scale_factor
+    dy = r_y * scale_factor
+    
+    # Dessin de la flèche
+    ax.annotate('', xy=(mean_x + dx, mean_y + dy), xytext=(mean_x, mean_y),
+                arrowprops=dict(arrowstyle="->", color=color, lw=linewidth))
+    
+    # Ajout du texte (avec un léger fond sombre pour la lisibilité)
+    plt.text(mean_x + dx * 1.05, mean_y + dy * 1.05, attr, 
+             color=color, fontsize=11, fontweight='bold',
+             ha='center', va='center',
+             bbox=dict(facecolor='#0e1117', edgecolor='none', alpha=0.7, pad=1))
 
-plt.text(mean_x + std_x * 1.25, mean_y + 0.1 * np.std(Z_supervised[:, 1]), 
-         'Vecteur de direction PLS', color='#3fb950', fontsize=12, fontweight='bold')
+# --- 6.5 Esthétique finale ---
+# Ajout des lignes d'origine (0,0)
+plt.axhline(mean_y, color='#30363d', linestyle='--', linewidth=1)
+plt.axvline(mean_x, color='#30363d', linestyle='--', linewidth=1)
 
-# --- ESTHÉTIQUE ---
-plt.title(f"Espace Latent Supervisé (PLS) - Attribut: {TARGET_ATTRIBUTE}", color='white', fontsize=14)
-plt.xlabel("Composante PLS 1 (Direction de l'attribut)", color='#c9d1d9')
-plt.ylabel("Composante PLS 2 (Variance orthogonale)", color='#c9d1d9')
+plt.title(f"Espace PLS Supervisé & Alignement des Biomarqueurs", color='white', fontsize=16, pad=20)
+plt.xlabel("Composante PLS 1 (Direction principale)", color='#c9d1d9', fontsize=12)
+plt.ylabel("Composante PLS 2", color='#c9d1d9', fontsize=12)
 
 ax.tick_params(colors='#8b949e')
 for spine in ax.spines.values():
     spine.set_edgecolor('#30363d')
 
-plt.grid(True, linestyle='--', color='#30363d', alpha=0.7)
-plt.legend(facecolor='#161b22', edgecolor='#30363d', labelcolor='white')
+plt.grid(True, linestyle=':', color='#30363d', alpha=0.5)
+plt.legend(facecolor='#161b22', edgecolor='#30363d', labelcolor='white', loc='upper right')
 
-# Sauvegarde dans le dossier généré à l'étape 1
-save_path = OUT_DIR / f"pls_scatter_plot_{TARGET_ATTRIBUTE}.png"
+# Sauvegarde
+save_path = OUT_DIR / f"pls_biplot_pearson_{TARGET_ATTRIBUTE}.png"
 plt.savefig(save_path, dpi=200, bbox_inches='tight', facecolor=plt.gcf().get_facecolor())
 plt.close()
 
-print(f"✅ Terminé ! Le graphique a été sauvegardé sous : {save_path}")
+print(f"✅ Terminé ! Le graphique Biplot a été sauvegardé sous : {save_path}")
 
-import scipy.stats as stats
+
 
 # ==============================================================================
 # 7. ANALYSE DES BIAIS : CORRÉLATION DE PEARSON AVEC LES AUTRES ATTRIBUTS
