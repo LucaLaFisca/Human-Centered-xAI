@@ -166,3 +166,218 @@ def find_otsu_threshold(im_gray):
 
     return seuil_optimal
 
+def compute_variance_scores(image_paths):
+    scores = []
+    last_valid_score = 0.0
+    
+    for img_path in tqdm(image_paths, desc="Calcul Variance (Contraste)"):
+        try:
+            # Lecture en niveaux de gris
+            img = read_image(str(img_path), ImageReadMode.GRAY).float() / 255.0
+            
+            # Calcul de la variance du tenseur (mesure du contraste)
+            feature_score = img.var().item()
+            
+            scores.append(feature_score)
+            last_valid_score = feature_score
+            
+        except Exception as e:
+            print(f"Error for {img_path}: {e} -> Assigning previous score: {last_valid_score:.4f}")
+            scores.append(last_valid_score)
+            
+    return scores
+
+def compute_color_covariance_scores(image_paths):
+    scores = []
+    last_valid_score = 0.0
+    
+    for img_path in tqdm(image_paths, desc="Calcul Covariance (Rouge-Bleu)"):
+        try:
+            # Lecture de l'image obligatoirement en RGB (3 canaux)
+            img = read_image(str(img_path), ImageReadMode.RGB).float() / 255.0
+            
+            # Aplatir les canaux Rouge (index 0) et Bleu (index 2) en vecteurs 1D
+            red_channel = img[0].flatten()
+            blue_channel = img[2].flatten()
+            
+            # Calcul de la matrice de covariance entre le Rouge et le Bleu
+            # torch.stack superpose les deux vecteurs pour que torch.cov les compare
+            cov_matrix = torch.cov(torch.stack([red_channel, blue_channel]))
+            
+            # On extrait la covariance (qui se trouve à l'index [0, 1] de la matrice)
+            feature_score = cov_matrix[0, 1].item()
+            
+            scores.append(feature_score)
+            last_valid_score = feature_score
+            
+        except Exception as e:
+            # Gestion des erreurs pour garder la même taille de liste
+            print(f"Error for {img_path}: {e} -> Assigning previous score: {last_valid_score:.4f}")
+            scores.append(last_valid_score)
+            
+    return scores
+def compute_brightness_scores(image_paths):
+    scores = []
+    last_valid_score = 0.0
+    for img_path in tqdm(image_paths, desc="Calcul Luminosité"):
+        try:
+            img = read_image(str(img_path), ImageReadMode.GRAY).float() / 255.0
+            feature_score = img.mean().item()
+            scores.append(feature_score)
+            last_valid_score = feature_score
+        except Exception as e:
+            scores.append(last_valid_score)
+    return scores
+
+def compute_skewness_scores(image_paths):
+    scores = []
+    last_valid_score = 0.0
+    for img_path in tqdm(image_paths, desc="Calcul Skewness"):
+        try:
+            img = read_image(str(img_path), ImageReadMode.GRAY).float() / 255.0
+            mean = img.mean()
+            std = img.std()
+            
+            # Calcul du skewness (on évite la division par zéro si l'image est unie)
+            if std > 1e-6:
+                skewness = ((img - mean)**3).mean() / (std**3)
+                feature_score = skewness.item()
+            else:
+                feature_score = 0.0
+                
+            scores.append(feature_score)
+            last_valid_score = feature_score
+        except Exception as e:
+            scores.append(last_valid_score)
+    return scores
+
+def compute_symmetry_scores(image_paths):
+    scores = []
+    last_valid_score = 0.0
+    for img_path in tqdm(image_paths, desc="Calcul Symétrie"):
+        try:
+            img = read_image(str(img_path), ImageReadMode.GRAY).float() / 255.0
+            
+            # torch.flip renverse le tenseur sur la dimension de la largeur (index 2)
+            img_flipped = torch.flip(img, dims=[2])
+            
+            # On calcule la différence absolue moyenne (Mean Absolute Error)
+            # Plus le score est proche de 0, plus l'image est symétrique
+            feature_score = torch.abs(img - img_flipped).mean().item()
+            
+            scores.append(feature_score)
+            last_valid_score = feature_score
+        except Exception as e:
+            scores.append(last_valid_score)
+    return scores
+#Test Ratio de Luminosité Haut/Bas (Indice d'ombre / Barbe) les hommes tendance a avoir un bas du visage plus sombre (barbes, machoires carrées)
+def compute_top_bottom_ratio_scores(image_paths):
+    scores = []
+    last_valid_score = 0.0
+    for img_path in tqdm(image_paths, desc="Calcul Ratio Haut/Bas"):
+        try:
+            img = read_image(str(img_path), ImageReadMode.GRAY).float() / 255.0
+            h = img.shape[1]
+            
+            # Découpage horizontal de l'image
+            top_half = img[:, :h//2, :].mean()
+            bottom_half = img[:, h//2:, :].mean()
+            
+            # Ratio (on ajoute 1e-6 pour éviter la division par zéro)
+            feature_score = (top_half / (bottom_half + 1e-6)).item()
+            
+            scores.append(feature_score)
+            last_valid_score = feature_score
+        except Exception as e:
+            scores.append(last_valid_score)
+    return scores
+
+#test dominance de la couleur rouge du au maquillage pour le test des visages 
+def compute_redness_dominance_scores(image_paths):
+    scores = []
+    last_valid_score = 0.0
+    for img_path in tqdm(image_paths, desc="Calcul Dominance Rouge"):
+        try:
+            # RGB obligatoire pour cette feature
+            img = read_image(str(img_path), ImageReadMode.RGB).float() / 255.0
+            
+            red_mean = img[0].mean()
+            green_mean = img[1].mean()
+            blue_mean = img[2].mean()
+            
+            # Plus le score est haut, plus l'image tire vers les teintes chaudes/rouges
+            feature_score = (red_mean / (green_mean + blue_mean + 1e-6)).item()
+            
+            scores.append(feature_score)
+            last_valid_score = feature_score
+        except Exception as e:
+            scores.append(last_valid_score)
+    return scores
+
+# Test de la Variance Centrale (Texture de la Peau) on compare les peaux (peau homme plus rugueuse)
+def compute_center_texture_scores(image_paths):
+    scores = []
+    last_valid_score = 0.0
+    for img_path in tqdm(image_paths, desc="Calcul Texture Centrale"):
+        try:
+            img = read_image(str(img_path), ImageReadMode.GRAY).float() / 255.0
+            h, w = img.shape[1], img.shape[2]
+            
+            # On recadre pour ne garder que la zone centrale (environ 50% de l'image au centre)
+            # Cela isole généralement le nez et les joues sur un visage de face
+            center_region = img[:, h//4 : 3*h//4, w//4 : 3*w//4]
+            
+            # On calcule la variance (le contraste/grain) de cette zone spécifique
+            feature_score = center_region.var().item()
+            
+            scores.append(feature_score)
+            last_valid_score = feature_score
+        except Exception as e:
+            scores.append(last_valid_score)
+    return scores
+#Test Pour le contraste des yeux on compare le constraste des yeux ( yeux féminins avec plus de contraste)
+def compute_eye_region_contrast_scores(image_paths):
+    scores = []
+    last_valid_score = 0.0
+    for img_path in tqdm(image_paths, desc="Calcul Contraste Yeux"):
+        try:
+            img = read_image(str(img_path), ImageReadMode.GRAY).float() / 255.0
+            h = img.shape[1]
+            
+            # On isole la bande horizontale contenant généralement les yeux 
+            # (de 30% à 50% de la hauteur en partant du haut)
+            eye_region = img[:, int(h*0.3):int(h*0.5), :]
+            
+            # On calcule la variance (le contraste global) de cette zone
+            feature_score = eye_region.var().item()
+            
+            scores.append(feature_score)
+            last_valid_score = feature_score
+        except Exception as e:
+            scores.append(last_valid_score)
+    return scores
+
+# Test contour de la machoire on vérifie le contour de la machoire afin de comparé 
+def compute_jaw_texture_scores(image_paths):
+    scores = []
+    last_valid_score = 0.0
+    for img_path in tqdm(image_paths, desc="Calcul Texture Mâchoire"):
+        try:
+            img = read_image(str(img_path), ImageReadMode.GRAY).float() / 255.0
+            h = img.shape[1]
+            
+            # On isole le tiers inférieur du visage (menton, mâchoire, cou)
+            jaw_region = img[:, int(h*0.7):, :]
+            
+            # Calcul rapide de l'activité des contours (Edge Density) : 
+            # On mesure la différence d'intensité entre les pixels adjacents (gradients X et Y)
+            diff_x = torch.abs(jaw_region[:, :, 1:] - jaw_region[:, :, :-1]).mean()
+            diff_y = torch.abs(jaw_region[:, 1:, :] - jaw_region[:, :-1, :]).mean()
+            
+            feature_score = (diff_x + diff_y).item()
+            
+            scores.append(feature_score)
+            last_valid_score = feature_score
+        except Exception as e:
+            scores.append(last_valid_score)
+    return scores

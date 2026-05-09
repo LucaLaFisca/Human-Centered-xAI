@@ -24,7 +24,7 @@ EPOCHS_AE = 50
 EPOCHS_CLASSIF = 30
 EPOCHS_ADV = 30
 
-LR_MAX_FACTOR = 5 # par exemple 
+LR_MAX_FACTOR = 5 # Facteur de division du lr_max pour les étapes suivantes (classif et adv)
 
 BATCH = 16
 ENCODING_DIM = 128
@@ -35,11 +35,11 @@ NOISE_STD = 0.05
 PATIENCE = 10
 
 # POIDS DES LOSS
-class_RECONS_WEIGHT = 0.6
-class_CLASS_WEIGHT = 0.4
-adv_RECONS_WEIGHT = 0.6
-adv_CLASS_WEIGHT = 0.1
-adv_ADV_WEIGHT = 0.3
+class_RECONS_WEIGHT = 0.9
+class_CLASS_WEIGHT = 0.1
+adv_RECONS_WEIGHT = 0.5
+adv_CLASS_WEIGHT = 0.05
+adv_ADV_WEIGHT = 0.45
 
 # Param de l'ADVERSARIAL
 LOW_TESH = 0.65

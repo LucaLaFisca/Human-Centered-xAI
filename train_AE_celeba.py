@@ -3,20 +3,21 @@ import torch.nn as nn
 import torch.nn.functional as F
 from fastai.vision.all import *
 from fastai.callback.tracker import CSVLogger, SaveModelCallback, EarlyStoppingCallback
+from fastai.callback.training import GradientAccumulation
 from pathlib import Path
 import datetime
 import matplotlib.pyplot as plt
+import pandas as pd
 
-# Import de ton architecture et de tes outils personnalisés
-# Assure-toi que model.py accepte input_channels=3 dans __init__
-from model import AAE
+from modelAAE_DROPOUT import AAE
 from utils import LossAttrMetric
 
 # ==============================================================================
 # 0. CONFIGURATION ET HYPERPARAMÈTRES
 # ==============================================================================
 EPOCHS = 50
-ENCODING_DIM = 512
+BATCH = 16
+ENCODING_DIM = 256
 MASK_RATIO = 0.20  # Légèrement augmenté pour des visages
 PATCH_SIZE = 16    # Patchs plus grands pour masquer des traits (yeux, nez)
 LOSS_ALPHA = 0.84  
@@ -41,25 +42,67 @@ class AddGaussianNoise(Transform):
 
 class RandomMasking(Transform):
     def __init__(self, mask_ratio=0.3, patch_size=16):
-        self.mask_ratio, self.patch_size = mask_ratio, patch_size
+        # Initialisation des hyperparamètres de masquage
+        self.mask_ratio = mask_ratio
+        self.patch_size = patch_size
+        
     def encodes(self, x: TensorImage):
+        # On clone le tenseur entrant pour ne pas altérer la donnée d'origine en mémoire.
         x = x.clone()
-        H, W = x.shape[-2:]
-        n_patches_h, n_patches_w = H // self.patch_size, W // self.patch_size
+
+        B, C, H, W = x.shape
+        
+        # Calcul du nombre total de patchs possibles sur la hauteur (H) et la largeur (W).
+        n_patches_h = H // self.patch_size
+        n_patches_w = W // self.patch_size
+        
+        # Calcul du nombre absolu de patchs à masquer pour cette image.
+        # On multiplie le nombre total de patchs par le ratio désiré, et on force la conversion en entier.
         n_masked = int((n_patches_h * n_patches_w) * self.mask_ratio)
-        indices = torch.randperm(n_patches_h * n_patches_w)[:n_masked]
-        for idx in indices:
-            i, j = (idx // n_patches_w) * self.patch_size, (idx % n_patches_w) * self.patch_size
-            if x.dim() == 4: x[:, :, i:i+self.patch_size, j:j+self.patch_size] = 0.
-            else:            x[:, i:i+self.patch_size, j:j+self.patch_size] = 0.
+        
+        # Boucle itérant sur chaque image individuelle du batch
+        for b in range(B):
+            # Génération d'une séquence de nombres aléatoires sans remise.
+            # On génère un index 1D pour chaque patch possible, on les mélange (randperm), 
+            # et on garde seulement les 'n_masked' premiers éléments.
+            # L'argument 'device=x.device' garantit que cette opération se fait sur le GPU si 'x' y est déjà.
+            indices = torch.randperm(n_patches_h * n_patches_w, device=x.device)[:n_masked]
+            
+            # Application du masque noir (0.) pour chaque index aléatoire tiré
+            for idx in indices:
+                # --- CONVERSION DE L'INDEX 1D EN COORDONNÉES 2D (LIGNE / COLONNE) ---
+                
+                # Coordonnée 'i' (axe Y, hauteur) :
+                # La division entière '//' par la largeur de la grille donne le numéro de la ligne (la rangée).
+                # Ex: Si la grille fait 16 patchs de large, l'index 34 correspond à la rangée 2 (34 // 16 = 2).
+                # On multiplie ensuite par 'patch_size' pour obtenir le pixel de départ réel sur l'image.
+                i = (idx // n_patches_w) * self.patch_size
+                
+                # Coordonnée 'j' (axe X, largeur) :
+                # Le modulo '%' par la largeur de la grille donne le reste, c'est-à-dire la position dans la ligne (la colonne).
+                # Ex: Pour l'index 34 sur une largeur de 16, le reste est 2 (34 % 16 = 2). C'est la 3ème colonne.
+                # On multiplie par 'patch_size' pour obtenir le pixel de départ horizontal.
+                j = (idx % n_patches_w) * self.patch_size
+                
+                # --- APPLICATION DU MASQUE ---
+                # b : on cible l'image courante de la boucle
+                # : : on cible tous les canaux de couleur (R, G, B) en même temps
+                # i:i+self.patch_size : on cible les pixels en hauteur sur la taille du patch
+                # j:j+self.patch_size : on cible les pixels en largeur sur la taille du patch
+                # On met toutes ces valeurs à 0. (noir)
+                x[b, :, i:i+self.patch_size, j:j+self.patch_size] = 0.
+                
+        # On retourne le batch complet, désormais masqué de manière indépendante pour chaque image.
         return x
 
 class CorruptionCallback(Callback):
-    def __init__(self, corruption_tfms): self.corruption_tfms = corruption_tfms
+    def __init__(self, corruption_tfms): 
+        self.corruption_tfms = corruption_tfms
     def before_batch(self):
         self.learn.clean_xb = self.learn.xb[0].clone()
         corrupted = self.learn.xb[0].clone()
-        for tfm in self.corruption_tfms: corrupted = tfm(corrupted)
+        for tfm in self.corruption_tfms: 
+            corrupted = tfm(corrupted)
         self.learn.xb = (corrupted,)
 
 class AAEDenoisingLoss:
@@ -76,14 +119,6 @@ corruption_cb = CorruptionCallback(corruption_tfms=[noise_tfm, mask_tfm])
 # ==============================================================================
 # Remplace par ton chemin vers le dossier img_align_celeba dézippé
 path_imgs = Path('celeba_mini_clean/img_align_celeba') 
-
-# La transformation exacte pour préserver l'alignement
-# Fastai va redimensionner l'image sans la déformer, puis ajouter des bordures noires
-# pour atteindre un carré parfait de 256x256.
-align_resize = Resize(256, method=ResizeMethod.Pad, pad_mode=PadMode.Zeros)
-
-import pandas as pd
-from fastai.vision.all import *
 
 # 1. Charger le fichier de partition avec Pandas
 # sep='\s+' gère les espaces multiples de CelebA
@@ -106,6 +141,10 @@ def celeba_splitter(items):
     return train_idx, valid_idx
 
 # 3. L'intégrer dans ton DataBlock actuel
+# La transformation exacte pour préserver l'alignement
+# Fastai va redimensionner l'image sans la déformer, puis ajouter des bordures noires
+# pour atteindre un carré parfait de 256x256.
+align_resize = Resize(256, method=ResizeMethod.Pad, pad_mode=PadMode.Zeros)
 dblock = DataBlock(
     blocks=(ImageBlock, ImageBlock), 
     get_items=get_image_files,
@@ -114,15 +153,16 @@ dblock = DataBlock(
     item_tfms=Resize(256, method=ResizeMethod.Pad, pad_mode=PadMode.Zeros)
 )
 
-dls = dblock.dataloaders(path_imgs, bs=128, num_workers=0)
+dls = dblock.dataloaders(path_imgs, bs=BATCH, num_workers=0)
 
 # ==============================================================================
 # 3. INITIALISATION DU MODÈLE ET ENTRAÎNEMENT
 # ==============================================================================
 model = AAE(
     input_size=256,
-    input_channels=3,  # IMPORTANT: 3 pour CelebA (RGB)
-    encoding_dims=ENCODING_DIM
+    input_channels=3,  # R G B 
+    encoding_dims=ENCODING_DIM,
+    skip_dropout=0.5
 )
 
 learn = Learner(
@@ -135,12 +175,13 @@ corruption_cb.learn = learn
 
 print("Entraînement en cours...")
 print("Recherche du Learning Rate optimal...")
-lr_max = 1e-3 # Valeur au milieu de la pente descendante observée dans lr_find()
+lr_max = learn.lr_find().valley # Valeur au milieu de la pente descendante observée dans lr_find()
 
 learn.fit_one_cycle(EPOCHS, lr_max=lr_max, cbs=[
     CSVLogger(fname=OUT_DIR/'history.csv'),
     SaveModelCallback(fname='best_celeba_AE_with_LRfixed'),
-    EarlyStoppingCallback(patience=PATIENCE)
+    EarlyStoppingCallback(patience=PATIENCE),
+    GradientAccumulation(n_acc=4) 
 ])
 
 # ==============================================================================
@@ -159,4 +200,4 @@ for i in range(4):
     axes[0,i].imshow(clean_xb[i].permute(1,2,0).cpu())
     axes[1,i].imshow(corrupted_xb[i].permute(1,2,0).cpu())
     axes[2,i].imshow(reconstructions[i].permute(1,2,0).cpu().clamp(0,1))
-plt.savefig(OUT_DIR/'reconstructions_celeba.png')
+plt.savefig(OUT_DIR/'reconstructions_celeba_Unet.png')

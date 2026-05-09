@@ -3,17 +3,18 @@ import torch.nn.functional as F
 import pandas as pd
 from fastai.vision.all import *
 from fastai.callback.tracker import CSVLogger, SaveModelCallback, EarlyStoppingCallback
+from fastai.callback.training import GradientAccumulation
 from pathlib import Path
 import datetime
 
-from model import AAE
+from modelAAE_DROPOUT import AAE
 
 # ==============================================================================
 # 0. CONFIGURATION ET HYPERPARAMÈTRES
 # ==============================================================================
 EPOCHS = 30
-BATCH_SIZE = 128
-ENCODING_DIM = 256
+BATCH_SIZE = 16
+ENCODING_DIM = 128
 PATIENCE = 5
 TARGET_ATTRIBUTE = 'Male' # L'attribut CelebA que tu souhaites classifier
 
@@ -82,7 +83,8 @@ class AAEClassifLossWrapper:
 model = AAE(
     input_size=256,
     input_channels=3,
-    encoding_dims=ENCODING_DIM
+    encoding_dims=ENCODING_DIM,
+    skip_dropout=0.5
 )
 
 learn = Learner(
@@ -99,5 +101,6 @@ print("Début de l'entraînement du classifieur...")
 learn.fit_one_cycle(EPOCHS, lr_max=lr_max, cbs=[
     CSVLogger(fname=OUT_DIR/'history_classif.csv'),
     SaveModelCallback(monitor='valid_loss', fname='best_celeba_classifier'),
-    EarlyStoppingCallback(monitor='valid_loss', patience=PATIENCE)
+    EarlyStoppingCallback(monitor='valid_loss', patience=PATIENCE),
+    GradientAccumulation(n_acc=4) 
 ])

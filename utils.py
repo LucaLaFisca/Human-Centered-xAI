@@ -144,9 +144,9 @@ class LossAttrMetric(Metric):
 def label_func(f): 
     name = f.name #on veut accéder aux noms uniquement
     if name[0].isupper(): #on veut tester la première lettre uniquement donc on applique "isupper" au premier élément de name (name[0])
-        return 'cat'
+        return True
     else:
-        return 'dog'
+        return False
 
 # Compute the regularized linear regression of the latent space wrt the labels
 def distrib_regul_regression(z, target, nbins: int=100, get_reg: bool=False):

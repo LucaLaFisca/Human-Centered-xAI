@@ -1,0 +1,51 @@
+# --- Fichiers gardés uniquement en LOCAL ---
+train_AE_brain.py
+create_celeba_mini.py
+imported_model.py
+loss_curve_plotter.py
+main_optuna.py
+model_Unet.py
+model.py
+number_male_female.py
+PETS_visualize_MSSSIM.py
+plot_confusionMat_ROC_AUC.py
+Test_TSNE.py
+train_adv_celeba.py
+train_AE_based_MS_SSIM.py
+train_AE_MSE.py
+visu_lr_find.py
+visualize_AE.py
+Gemini/
+
+# --- Images ---
+*.png
+*.jpg
+*.jpeg
+
+# --- Données et Modèles lourds ---
+# Il ne faut pas versionner les datasets, surtout des images médicales
+data/
+brains/
+brains/db_brain_tumor/
+celeba/
+celeba_mini_clean/
+celeba_mini.zip
+features_scores/dataset/
+*.pth
+*.pkl
+
+# --- Jupyter & nbdev ---
+# Fichiers temporaires créés par les notebooks
+.ipynb_checkpoints/
+_proc/
+_docs/
+
+# --- Python ---
+# Fichiers compilés automatiquement par Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- Environnements virtuels ---
+# Si tu utilises un environnement local
+env_mac.yml
