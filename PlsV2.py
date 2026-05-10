@@ -161,9 +161,9 @@ ax.set_facecolor('#0e1117')
 # La Composante PLS 1 sert de score continu ("Intensité" de l'attribut)
 intensite_valeur = Z_supervised[:, 0]
 
-# Création d'une palette de couleurs monochromatique (Dark vers Vert vif)
-# Cela remplace la logique "points bleus vs rouges"
-cmap_mono = sns.dark_palette("#3fb950", as_cmap=True)
+# Création d'une palette de couleurs monochromatique 
+cmap_mono = "viridis"
+#cmap_mono = sns.dark_palette("#3fb950", as_cmap=True)
 
 # Tracé d'un SEUL nuage de points où la couleur dépend de l'intensité
 scatter = ax.scatter(Z_supervised[:, 0], Z_supervised[:, 1], 
