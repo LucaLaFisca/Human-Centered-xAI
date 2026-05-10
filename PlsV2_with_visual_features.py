@@ -36,7 +36,7 @@ from modelAAE_DROPOUT import AAE
 from utils import GetLatentSpace
 
 # ─── Imports des fonctions de calcul de features (score_assignment) ──────────
-from scores_utils import (
+from scores_utils_Pls import (
     compute_fft_scores,
     compute_variance_scores,
     compute_color_covariance_scores,
