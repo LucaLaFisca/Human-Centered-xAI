@@ -258,3 +258,49 @@ for attr, r2_signed in sorted_pearson:
     # Un score positif signifie que l'attribut augmente en même temps que 'Male'
     # Un score négatif signifie que l'attribut diminue quand 'Male' augmente
     print(f"  • {attr:<15} : {r2_signed:+.3f}")
+
+# ==============================================================================
+# 8. CLASSEMENT DE L'IMPORTANCE DES ATTRIBUTS (STYLE BIOMARKERS)
+# ==============================================================================
+print("▶ Génération du graphique de classement des attributs...")
+
+# 1. Calcul de l'alignement (r²) pour TOUS les attributs de CelebA
+all_attr_names = df_attr.columns.tolist()
+rank_results = {}
+
+for attr in all_attr_names:
+    true_vals = df_test_attrs[attr].values
+    # On calcule la corrélation avec l'axe principal de la PLS (Z_supervised[:, 0])
+    r, _ = stats.pearsonr(Z_supervised[:, 0], true_vals)
+    rank_results[attr] = r**2 # On garde le r² pour l'importance
+
+# 2. Tri des 15 attributs les plus importants
+sorted_attrs = sorted(rank_results.items(), key=lambda x: x[1], reverse=True)[:15]
+names, values = zip(*sorted_attrs)
+
+# 3. Visualisation (Bar Chart Horizontal)
+plt.figure(figsize=(10, 8), facecolor='#161b22')
+ax = plt.gca()
+ax.set_facecolor('#0e1117')
+
+# Création des barres
+y_pos = np.arange(len(names))
+bars = ax.barh(y_pos, values, color='#3fb950', alpha=0.8)
+
+# Esthétique
+ax.set_yticks(y_pos)
+ax.set_yticklabels(names, color='#c9d1d9', fontsize=12)
+ax.invert_yaxis() # Le plus important en haut
+ax.set_xlabel("Alignement (Pearson r²)", color='#c9d1d9')
+ax.set_title(f"Top 15 des attributs alignés avec l'axe {TARGET_ATTRIBUTE}", color='white', fontsize=15, pad=20)
+
+ax.tick_params(colors='#8b949e')
+for spine in ax.spines.values():
+    spine.set_edgecolor('#30363d')
+
+plt.grid(axis='x', linestyle=':', color='#30363d', alpha=0.5)
+plt.tight_layout()
+
+# Sauvegarde
+plt.savefig(OUT_DIR / "importance_ranking.png", facecolor='#161b22')
+plt.show()
