@@ -132,93 +132,91 @@ print("  Modèle PLS entraîné et données transformées avec succès.")
 
 import scipy.stats as stats
 
+import scipy.stats as stats
+import matplotlib.colors as mcolors
+
 # ==============================================================================
-# 6. VISUALISATION TYPE "BIOMARKERS" (BIPLOT PLS + VECTEURS DE PEARSON)
+# 6. VISUALISATION PLS (EN MODE MONOCHROMATIQUE CONTINU)
 # ==============================================================================
-print("▶ Génération du graphique PLS (Biplot avec vecteurs de Pearson)...")
+print("▶ Génération du graphique PLS (Biplot Monochromatique)...")
 
 # --- 6.1 Préparation des données d'attributs ---
 test_img_names = [item.name for item in test_items]
 df_test_attrs = df_attr.loc[test_img_names]
 
-# Liste des attributs (biomarqueurs) à projeter dans l'espace
-# Vous pouvez ajouter d'autres colonnes de list_attr_celeba.txt ici
 attributes_to_project = ['Smiling', 'Young', 'Eyeglasses', 'Blond_Hair', 'No_Beard', TARGET_ATTRIBUTE]
 
 # --- 6.2 Calcul des vecteurs de Pearson ---
 pearson_vectors = {}
 for attr in attributes_to_project:
     true_values = df_test_attrs[attr].values
-    
-    # Corrélation avec la Composante PLS 1 (Axe X)
     r_x, _ = stats.pearsonr(Z_supervised[:, 0], true_values)
-    # Corrélation avec la Composante PLS 2 (Axe Y)
     r_y, _ = stats.pearsonr(Z_supervised[:, 1], true_values)
-    
-    # On stocke le vecteur directionnel
     pearson_vectors[attr] = (r_x, r_y)
 
 # --- 6.3 Création du graphique ---
-plt.figure(figsize=(12, 10), facecolor='#161b22')
-ax = plt.gca()
+fig, ax = plt.subplots(figsize=(12, 10), facecolor='#161b22')
 ax.set_facecolor('#0e1117')
 
-mask_target = (target_score == 1)
+# La Composante PLS 1 sert de score continu ("Intensité" de l'attribut)
+intensite_valeur = Z_supervised[:, 0]
 
-# Tracé du nuage de points (avec transparence augmentée pour bien voir les flèches)
-plt.scatter(Z_supervised[~mask_target, 0], Z_supervised[~mask_target, 1], 
-            alpha=0.3, label=f"Not {TARGET_ATTRIBUTE}", c='#58a6ff', s=15, edgecolors='none')
-plt.scatter(Z_supervised[mask_target, 0], Z_supervised[mask_target, 1], 
-            alpha=0.3, label=f"{TARGET_ATTRIBUTE}", c='#ff7b72', s=15, edgecolors='none')
+# Création d'une palette de couleurs monochromatique (Dark vers Vert vif)
+# Cela remplace la logique "points bleus vs rouges"
+cmap_mono = sns.dark_palette("#3fb950", as_cmap=True)
 
-# --- 6.4 Tracé des vecteurs de corrélation (Flèches) ---
-# Facteur d'échelle : Les coefficients de Pearson vont de -1 à 1.
-# On les multiplie pour qu'ils prennent environ 80% de la taille du graphique.
+# Tracé d'un SEUL nuage de points où la couleur dépend de l'intensité
+scatter = ax.scatter(Z_supervised[:, 0], Z_supervised[:, 1], 
+                     c=intensite_valeur, cmap=cmap_mono, 
+                     alpha=0.7, s=30, edgecolors='none')
+
+# Ajout d'une barre de couleur (Colorbar) pour lire l'intensité
+cbar = plt.colorbar(scatter, ax=ax, fraction=0.03, pad=0.04)
+cbar.set_label(f"Intensité estimée (Score PLS de '{TARGET_ATTRIBUTE}')", color='#c9d1d9')
+cbar.ax.yaxis.set_tick_params(color='#8b949e')
+plt.setp(plt.getp(cbar.ax.axes, 'yticklabels'), color='#8b949e')
+
+# --- 6.4 Tracé des vecteurs de corrélation (Flèches de Pearson) ---
 scale_factor = max(np.max(np.abs(Z_supervised[:, 0])), np.max(np.abs(Z_supervised[:, 1]))) * 0.8
 mean_x, mean_y = np.mean(Z_supervised[:, 0]), np.mean(Z_supervised[:, 1])
 
 for attr, (r_x, r_y) in pearson_vectors.items():
-    # Mise en évidence de l'attribut cible principal
     is_target = (attr == TARGET_ATTRIBUTE)
-    color = '#3fb950' if is_target else '#f0e68c' # Vert pour la cible, Jaune pour les autres
+    # Flèche blanche pour la cible principale, jaune/dorée pour les biomarqueurs secondaires
+    color = '#ffffff' if is_target else '#f0e68c' 
     linewidth = 2.5 if is_target else 1.5
     
-    # Calcul des coordonnées finales de la flèche
     dx = r_x * scale_factor
     dy = r_y * scale_factor
     
-    # Dessin de la flèche
     ax.annotate('', xy=(mean_x + dx, mean_y + dy), xytext=(mean_x, mean_y),
                 arrowprops=dict(arrowstyle="->", color=color, lw=linewidth))
     
-    # Ajout du texte (avec un léger fond sombre pour la lisibilité)
-    plt.text(mean_x + dx * 1.05, mean_y + dy * 1.05, attr, 
+    ax.text(mean_x + dx * 1.05, mean_y + dy * 1.05, attr, 
              color=color, fontsize=11, fontweight='bold',
              ha='center', va='center',
              bbox=dict(facecolor='#0e1117', edgecolor='none', alpha=0.7, pad=1))
 
 # --- 6.5 Esthétique finale ---
-# Ajout des lignes d'origine (0,0)
-plt.axhline(mean_y, color='#30363d', linestyle='--', linewidth=1)
-plt.axvline(mean_x, color='#30363d', linestyle='--', linewidth=1)
+ax.axhline(mean_y, color='#30363d', linestyle='--', linewidth=1)
+ax.axvline(mean_x, color='#30363d', linestyle='--', linewidth=1)
 
-plt.title(f"Espace PLS Supervisé & Alignement des Biomarqueurs", color='white', fontsize=16, pad=20)
-plt.xlabel("Composante PLS 1 (Direction principale)", color='#c9d1d9', fontsize=12)
-plt.ylabel("Composante PLS 2", color='#c9d1d9', fontsize=12)
+ax.set_title(f"Espace PLS & Biomarqueurs - Intensité de '{TARGET_ATTRIBUTE}'", color='white', fontsize=16, pad=20)
+ax.set_xlabel("Composante PLS 1 (Direction de l'attribut)", color='#c9d1d9', fontsize=12)
+ax.set_ylabel("Composante PLS 2 (Variance orthogonale)", color='#c9d1d9', fontsize=12)
 
 ax.tick_params(colors='#8b949e')
 for spine in ax.spines.values():
     spine.set_edgecolor('#30363d')
 
-plt.grid(True, linestyle=':', color='#30363d', alpha=0.5)
-plt.legend(facecolor='#161b22', edgecolor='#30363d', labelcolor='white', loc='upper right')
+ax.grid(True, linestyle=':', color='#30363d', alpha=0.5)
 
 # Sauvegarde
-save_path = OUT_DIR / f"pls_biplot_pearson_{TARGET_ATTRIBUTE}.png"
-plt.savefig(save_path, dpi=200, bbox_inches='tight', facecolor=plt.gcf().get_facecolor())
+save_path = OUT_DIR / f"pls_biplot_mono_{TARGET_ATTRIBUTE}.png"
+plt.savefig(save_path, dpi=200, bbox_inches='tight', facecolor=fig.get_facecolor())
 plt.close()
 
-print(f"✅ Terminé ! Le graphique Biplot a été sauvegardé sous : {save_path}")
+print(f"✅ Terminé ! Le graphique Biplot monochromatique a été sauvegardé sous : {save_path}")
 
 
 
