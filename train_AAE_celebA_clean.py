@@ -6,7 +6,7 @@ import pingouin as pg
 
 import random
 from model import AAE
-from utils import (UnfreezeFcCritAdaptative,FreezeDiscriminator, label_func, GetLatentSpace,
+from utils_AAE import (UnfreezeFcCritAdaptative,FreezeDiscriminator, label_func, GetLatentSpace,
                    LossAttrMetric, distrib_regul_regression, compute_main_direction)
 
 # ── DataLoader ───────────────────────────────────────────────────────
