@@ -203,7 +203,7 @@ class AAE(nn.Module):
             fake = torch.zeros_like(self.gan_fake, requires_grad=False).detach()
             self.real_loss = adversarial_loss(self.gan_real, valid)
             self.fake_loss = adversarial_loss(self.gan_fake, fake)
-            self.adv_loss = 0.6 * self.real_loss + 0.4 * self.fake_loss
+            self.adv_loss = 0.5 * self.real_loss + 0.5 * self.fake_loss # on passe de 0.6/0.4 a 0.5/0.5
             self.crit_loss = self.adv_loss
 
         # ce = nn.CrossEntropyLoss()
