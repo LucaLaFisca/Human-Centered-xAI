@@ -304,7 +304,7 @@ class AAE(nn.Module):
         # ÉTAPE 2 : BOTTLENECK AAE
         # =========================================================
         flat = self.flatten(feats)
-        self.zi = F.leaky_relu(self.bn_lin(self.fc_encode(flat)), negative_slope=0.2)
+        self.zi = self.fc_encode(flat)
         
         labels = self.linear(self.zi)
         
