@@ -104,7 +104,7 @@ class AAE(nn.Module):
         #         )))
         # Test self.zi avec batch norm et sans leaky relu 
         #test sans batch norm self.bn_lin   #self.bn_lin
-        self.zi = self.bn_lin(self.encoder_fc(
+        self.zi = (self.encoder_fc(
             features.view(
                 -1, features.size(1) * features.size(2) * features.size(3)
             ))
