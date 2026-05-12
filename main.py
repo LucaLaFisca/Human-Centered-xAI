@@ -35,11 +35,11 @@ NOISE_STD = 0.05
 PATIENCE = 10
 
 # POIDS DES LOSS
-class_RECONS_WEIGHT = 0.95
-class_CLASS_WEIGHT = 0.05
-adv_RECONS_WEIGHT = 0.35
-adv_CLASS_WEIGHT = 0.05
-adv_ADV_WEIGHT = 0.6
+ae_RECONS_WEIGHT = 0.20
+ae_ADV_WEIGHT = 0.8
+class_RECONS_WEIGHT = 0.3
+class_CLASS_WEIGHT = 0.1
+class_ADV_WEIGHT = 0.6
  
 
 # Param de l'ADVERSARIAL
@@ -193,24 +193,81 @@ model = AAE(
     input_channels=3,  # R G B 
     encoding_dims=ENCODING_DIM
 )
+# ON CHANGE L'ordre avec adversarial en premier
+#==============================================================================
+# 6. ENTRAINEMENT ADVERSARIAL 
+#==============================================================================
 
+
+print("Entraînement adversarial...")
+
+# class AAELoss:
+#     def __init__(self, recons_weight, class_weight, adv_weight):
+#         self.recons_weight = recons_weight
+#         self.class_weight = class_weight
+#         self.adv_weight = adv_weight
+        
+#     def __call__(self, pred, *yb):
+#         return model.aae_loss_func(pred, *yb, 
+#                                    RECONS_WEIGHT=self.recons_weight,
+#                                    CLASS_WEIGHT=self.class_weight,
+#                                    ADV_WEIGHT=self.adv_weight)
+
+
+class AAELoss:        
+    def __call__(self, pred, *yb):
+        return model.aae_loss_func(pred, *yb)
+                                 
+metrics = [LossAttrMetric("adv_loss"),
+           LossAttrMetric("recons_loss"),
+           LossAttrMetric("classif_loss"),
+           accuracy]
+
+# Injection de dls_classif ici aussi
+learn = Learner(dls_classif, model, loss_func=AAELoss, metrics=metrics)
+print("Recherche du Learning Rate optimal...")
+lr_max = learn.lr_find().valley # Valeur au milieu de la pente descendante observée dans lr_find()
+model_file = 'CL_AAE_model'
+learn.fit(EPOCHS_ADV, lr=lr_max,
+            cbs=[GradientAccumulation(n_acc=4),
+                 TrackerCallback(),
+                 SaveModelCallback(fname=model_file),
+                 EarlyStoppingCallback(min_delta=1e-4,patience=PATIENCE),
+                 UnfreezeFcCritAdaptative(low_threshold=LOW_TESH, high_threshold=HIGH_TESH)])
+
+state_dict = torch.load(f'models/{model_file}.pth')
+model.load_state_dict(state_dict, strict=False)
 #==============================================================================
 # 4. ENTRAINEMENT DE L'AUTOENCODER
 #==============================================================================
+class AELoss:
+    def __init__(self, recons_weight, class_weight):
+        self.recons_weight = recons_weight
+        self.class_weight = class_weight
+        
+    def __call__(self, pred, *yb):
+        return model.denoising_ae_loss_func(pred, *yb, 
+                                            RECONS_WEIGHT=self.recons_weight, 
+                                            CLASS_WEIGHT=self.class_weight
+                                            )
+
+
+ae_loss = AELoss(ae_RECONS_WEIGHT, ae_ADV_WEIGHT) 
+
 learn = Learner(
     dls_ae, model,
-    loss_func=AAEDenoisingLoss(),
-    metrics=[LossAttrMetric("recons_loss")],
+    loss_func=ae_loss,
+    metrics=[LossAttrMetric("recons_loss"),
+             LossAttrMetric("adv_loss")],
     cbs=[corruption_cb]
 )
 corruption_cb.learn = learn
 
-print("Recherche du Learning Rate optimal...")
-lr_max = learn.lr_find().valley # Valeur au milieu de la pente descendante observée dans lr_find()
+
 
 model_file = 'CL_AE_model'
-print(f"Entraînement de l'autoencodeur avec lr_max={lr_max:.2e}...")
-learn.fit_one_cycle(EPOCHS_AE, lr_max=lr_max,
+print(f"Entraînement de l'autoencodeur avec lr_max={(lr_max/LR_MAX_FACTOR):.2e}...")
+learn.fit_one_cycle(EPOCHS_AE, lr_max=lr_max/LR_MAX_FACTOR,
             cbs=[TrackerCallback(),
                  SaveModelCallback(fname=model_file),
                  EarlyStoppingCallback(min_delta=1e-4,patience=10),
@@ -219,6 +276,8 @@ learn.fit_one_cycle(EPOCHS_AE, lr_max=lr_max,
 state_dict = torch.load(f'models/{model_file}.pth')
 model.load_state_dict(state_dict, strict=False)
 
+#On change l'ordre de la division par lr_max factor
+lr= lr_max/LR_MAX_FACTOR
 #==============================================================================
 # 5. ENTRAINEMENT DU CLASSIFIEUR (en gardant les poids de l'AE)
 #==============================================================================
@@ -236,19 +295,25 @@ dls_classif = dblock_classif.dataloaders(path_imgs, bs=BATCH, num_workers=0)
 
 print("Entraînement du classifieur...")
 
+
+
 class ClassifLoss:
-    def __init__(self, recons_weight, class_weight):
+    def __init__(self, recons_weight, class_weight, adv_weight):
         self.recons_weight = recons_weight
         self.class_weight = class_weight
+        self.adv_weight = adv_weight
         
     def __call__(self, pred, *yb):
         return model.classif_loss_func(pred, *yb, 
-                                            RECONS_WEIGHT=self.recons_weight, 
-                                            CLASS_WEIGHT=self.class_weight)
+                                   RECONS_WEIGHT=self.recons_weight,
+                                   CLASS_WEIGHT=self.class_weight,
+                                   ADV_WEIGHT=self.adv_weight)
 
-classif_loss = ClassifLoss(class_RECONS_WEIGHT, class_CLASS_WEIGHT)
 
-metrics = [LossAttrMetric("recons_loss"),
+classif_loss = ClassifLoss(class_RECONS_WEIGHT, class_CLASS_WEIGHT, class_ADV_WEIGHT)
+
+metrics = [LossAttrMetric("adv_loss"),
+           LossAttrMetric("recons_loss"),
            LossAttrMetric("classif_loss"),
            accuracy]
 
@@ -263,45 +328,9 @@ learn.fit(EPOCHS_CLASSIF, lr=lr_max/LR_MAX_FACTOR,
                  SaveModelCallback(fname=model_file,monitor=monitor_loss),
                  EarlyStoppingCallback(min_delta=1e-4,patience=PATIENCE,monitor=monitor_loss)])
 
-lr= lr_max/LR_MAX_FACTOR
 
-#==============================================================================
-# 6. ENTRAINEMENT ADVERSARIAL 
-#==============================================================================
-print("Entraînement adversarial...")
 
-class AAELoss:
-    def __init__(self, recons_weight, class_weight, adv_weight):
-        self.recons_weight = recons_weight
-        self.class_weight = class_weight
-        self.adv_weight = adv_weight
-        
-    def __call__(self, pred, *yb):
-        return model.aae_loss_func(pred, *yb, 
-                                   RECONS_WEIGHT=self.recons_weight,
-                                   CLASS_WEIGHT=self.class_weight,
-                                   ADV_WEIGHT=self.adv_weight)
 
-aae_loss = AAELoss(adv_RECONS_WEIGHT, adv_CLASS_WEIGHT, adv_ADV_WEIGHT)
-
-metrics = [LossAttrMetric("adv_loss"),
-           LossAttrMetric("recons_loss"),
-           LossAttrMetric("classif_loss"),
-           accuracy]
-
-# Injection de dls_classif ici aussi
-learn = Learner(dls_classif, model, loss_func=aae_loss, metrics=metrics)
-
-model_file = 'CL_AAE_model'
-learn.fit(EPOCHS_ADV, lr=lr/LR_MAX_FACTOR,
-            cbs=[GradientAccumulation(n_acc=4),
-                 TrackerCallback(),
-                 SaveModelCallback(fname=model_file),
-                 EarlyStoppingCallback(min_delta=1e-4,patience=PATIENCE),
-                 UnfreezeFcCritAdaptative(low_threshold=LOW_TESH, high_threshold=HIGH_TESH)])
-
-state_dict = torch.load(f'models/{model_file}.pth')
-model.load_state_dict(state_dict, strict=False)
 
 
 #==============================================================================
