@@ -17,13 +17,16 @@ class UnfreezeFcCritAdaptative(Callback):
 
     def before_epoch(self):
         # Get last valid_loss
-        current_valid_loss = self.learn.recorder.values[-1][1] if self.learn.recorder.values else float('inf')
-        self.valid_loss_history.append(current_valid_loss)
+        #current_valid_loss = self.learn.recorder.values[-1][1] if self.learn.recorder.values else float('inf')
+        #self.valid_loss_history.append(current_valid_loss)
 
-        if len(self.valid_loss_history) >= self.window_size:
-            avg_valid_loss = np.mean(self.valid_loss_history[-self.window_size:])
-        else:
-            avg_valid_loss = current_valid_loss
+        if self.learn.recorder.values:
+            current_valid_loss = self.learn.recorder.values[-1][1]
+            self.valid_loss_history.append(current_valid_loss)
+
+        # Calcul de la moyenne sur la fenêtre glissante
+        window = self.valid_loss_history[-self.window_size:]
+        avg_valid_loss = np.mean(window) if window else float('inf')
 
         # Decide to train Generator or Discriminator
         if self.epoch < 3:  
@@ -79,15 +82,15 @@ class UnfreezeFcCritAdaptative(Callback):
                     self.gen_train_epochs += 1
 
                 # Et corriger le log de la garde gen_train_epochs >= 3
-                if self.gen_train_epochs >= 3:
-                    print("train discriminator (trop d'époques générateur, avg_valid_loss={:.4f})".format(avg_valid_loss))  # ← était "train Generator"
-                    self.learn.model.gen_train = False
-                    for name, param in self.learn.model.named_parameters():
-                        if "fc_crit" in name:
-                            param.requires_grad_(True)
-                        else:
-                            param.requires_grad_(False)
-                    self.gen_train_epochs = 0
+        if self.gen_train_epochs >= 3:
+            print("train discriminator (trop d'époques générateur, avg_valid_loss={:.4f})".format(avg_valid_loss))  # ← était "train Generator"
+            self.learn.model.gen_train = False
+            for name, param in self.learn.model.named_parameters():
+                if "fc_crit" in name:
+                    param.requires_grad_(True)
+                else:
+                    param.requires_grad_(False)
+            self.gen_train_epochs = 0
         
 
 class FreezeDiscriminator(Callback):
