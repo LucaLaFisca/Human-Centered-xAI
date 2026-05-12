@@ -301,15 +301,11 @@ class AAE(nn.Module):
         loss = ADV_WEIGHT * self.adv_loss + RECONS_WEIGHT * self.recons_loss + CLASS_WEIGHT * self.classif_loss
         return loss
     
-    def aae_loss_func(self, output, target, **kwargs):
+    def aae_loss_func(self, output, target):
         
         alpha = 0.84
         
-        # On utilise self.input_image ici aussi
-        l1_loss = F.l1_loss(self.decoder_output, self.input_image)
-        ms_ssim_val = ms_ssim(self.decoder_output, self.input_image, data_range=1.0, size_average=True)
-        msssim_loss = 1.0 - ms_ssim_val
-        self.recons_loss = alpha * msssim_loss + (1.0 - alpha) * l1_loss
+       
         adversarial_loss = nn.BCELoss()
         if self.gen_train: 
             valid = torch.ones_like(self.gan_fake, requires_grad=False).detach()
@@ -323,7 +319,7 @@ class AAE(nn.Module):
             self.adv_loss = 0.6 * self.real_loss + 0.4 * self.fake_loss
             self.crit_loss = self.adv_loss
 
-        self.classif_loss = F.cross_entropy(output, target, **kwargs)
+        
 
         loss = self.adv_loss
             
