@@ -35,11 +35,11 @@ NOISE_STD = 0.05
 PATIENCE = 10
 
 # POIDS DES LOSS
-ae_RECONS_WEIGHT = 0.20
+ae_RECONS_WEIGHT = 0.2
 ae_ADV_WEIGHT = 0.8
-class_RECONS_WEIGHT = 0.3
+class_RECONS_WEIGHT = 0.4
 class_CLASS_WEIGHT = 0.1
-class_ADV_WEIGHT = 0.6
+class_ADV_WEIGHT = 0.5
  
 
 # Param de l'ADVERSARIAL
@@ -52,8 +52,8 @@ RUN_NAME = (
     f"lr{str(LR_MAX_FACTOR).replace('.', 'p')}_"
     f"enc{ENCODING_DIM}_"
     f"low{str(LOW_TESH).replace('.', 'p')}_high{str(HIGH_TESH).replace('.', 'p')}_"
-    f"classpoids{str(class_RECONS_WEIGHT).replace('.', 'p')}-wc{str(class_CLASS_WEIGHT).replace('.', 'p')}_"
-    f"advpoids{str(adv_RECONS_WEIGHT).replace('.', 'p')}-ac{str(adv_CLASS_WEIGHT).replace('.', 'p')}-aa{str(adv_ADV_WEIGHT).replace('.', 'p')}_"
+    f"classpoids{str(ae_RECONS_WEIGHT).replace('.', 'p')}-wc{str(ae_ADV_WEIGHT).replace('.', 'p')}_"
+    f"advpoids{str(class_RECONS_WEIGHT).replace('.', 'p')}-ac{str(class_CLASS_WEIGHT).replace('.', 'p')}-aa{str(class_ADV_WEIGHT).replace('.', 'p')}_"
 )
 OUT_DIR = Path(f"CL_results/{RUN_NAME}")
 OUT_DIR.mkdir(parents=True, exist_ok=True)
