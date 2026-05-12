@@ -219,8 +219,6 @@ class AAELoss:
         return model.aae_loss_func(pred, *yb)
                                  
 metrics = [LossAttrMetric("adv_loss"),
-           LossAttrMetric("recons_loss"),
-           LossAttrMetric("classif_loss"),
            accuracy]
 
 # Injection de dls_classif ici aussi
