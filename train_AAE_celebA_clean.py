@@ -5,7 +5,7 @@ import numpy as np
 import pingouin as pg
 
 import random
-from modelAAE_DROPOUT import AAE
+from model import AAE
 from utils_AAE import (UnfreezeFcCritAdaptative,FreezeDiscriminator, label_func, GetLatentSpace,
                    LossAttrMetric, distrib_regul_regression, compute_main_direction)
 
