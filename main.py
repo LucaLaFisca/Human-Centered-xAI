@@ -218,8 +218,7 @@ class AAELoss:
     def __call__(self, pred, *yb):
         return model.aae_loss_func(pred, *yb)
                                  
-metrics = [LossAttrMetric("adv_loss"),
-           accuracy]
+metrics = [LossAttrMetric("adv_loss")]
 
 # Injection de dls_classif ici aussi
 learn = Learner(dls_ae, model, loss_func=AAELoss(), metrics=metrics)
@@ -238,16 +237,30 @@ model.load_state_dict(state_dict, strict=False)
 #==============================================================================
 # 4. ENTRAINEMENT DE L'AUTOENCODER
 #==============================================================================
+# class AELoss:
+#     def __init__(self, recons_weight, class_weight):
+#         self.recons_weight = recons_weight
+#         self.class_weight = class_weight
+        
+#     def __call__(self, pred, *yb):
+#         return model.denoising_ae_loss_func(pred, *yb, 
+#                                             RECONS_WEIGHT=self.recons_weight, 
+#                                             CLASS_WEIGHT=self.class_weight
+#                                             )
 class AELoss:
     def __init__(self, recons_weight, class_weight):
         self.recons_weight = recons_weight
         self.class_weight = class_weight
-        
+
     def __call__(self, pred, *yb):
-        return model.denoising_ae_loss_func(pred, *yb, 
-                                            RECONS_WEIGHT=self.recons_weight, 
-                                            CLASS_WEIGHT=self.class_weight
-                                            )
+        clean_xb = corruption_cb.learn.clean_xb  # image avant corruption
+        return model.denoising_ae_loss_func(
+            clean_xb,
+            self.recons_weight,
+            self.class_weight,
+            pred,
+            yb)
+                 
 
 
 ae_loss = AELoss(ae_RECONS_WEIGHT, ae_ADV_WEIGHT) 
