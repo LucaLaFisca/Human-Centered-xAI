@@ -109,11 +109,11 @@ model_file = 'cat_dog_aae_test'
 #print(f"Learning rate valley : {learnint ag_rate.valley:.6f}")
 print(f"start learn.fit")
 #learn.fit_one_cycle(100, lr_max=1e-3)
-learn.fit(30, lr=5e-5, #0.72
+learn.fit(70, lr=5e-5, #0.72
 
     cbs=[
         #GradientAccumulation(n_acc=128),          # Bs=128 n=4 
-        TrackerCallback(),
+        #TrackerCallback(),
         SaveModelCallback(fname=model_file),
         #EarlyStoppingCallback(min_delta=1e-4, patience=30),
         #FreezeDiscriminator(),
