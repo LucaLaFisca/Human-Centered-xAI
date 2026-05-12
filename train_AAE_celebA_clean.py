@@ -89,7 +89,7 @@ dblock = DataBlock(
 )
 
 # Création du DataLoader
-dls = dblock.dataloaders(path_imgs, bs=128, num_workers=0)
+dls = dblock.dataloaders(path_imgs, bs=16, num_workers=0)
 #On vérifie que le nombre d'image trouvé est le bon 
 print(f"Images trouvées - Train: {len(dls.train_ds)}, Valid: {len(dls.valid_ds)}")
 # ── Modèle ───────────────────────────────────────────────────────────
