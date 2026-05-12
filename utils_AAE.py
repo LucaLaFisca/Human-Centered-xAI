@@ -14,83 +14,141 @@ class UnfreezeFcCritAdaptative(Callback):
         self.window_size = window_size  
         self.valid_loss_history = []  
         self.gen_train_epochs = 0  
-
+        
     def before_epoch(self):
-        # Get last valid_loss
-        #current_valid_loss = self.learn.recorder.values[-1][1] if self.learn.recorder.values else float('inf')
-        #self.valid_loss_history.append(current_valid_loss)
-
         if self.learn.recorder.values:
             current_valid_loss = self.learn.recorder.values[-1][1]
             self.valid_loss_history.append(current_valid_loss)
 
-        # Calcul de la moyenne sur la fenêtre glissante
         window = self.valid_loss_history[-self.window_size:]
         avg_valid_loss = np.mean(window) if window else float('inf')
 
-        # Decide to train Generator or Discriminator
-        if self.epoch < 3:  
-            print("train Discriminator (initial phase)") # on décide de commencer par le discriminateur
+        if self.epoch < 3:
+            print("train Discriminator (initial phase)")
             self.learn.model.gen_train = False
             for name, param in self.learn.model.named_parameters():
-                if "fc_crit" in name:
-                    param.requires_grad_(True)
-                else:
-                    param.requires_grad_(False)
+                param.requires_grad_("fc_crit" in name)
             self.gen_train_epochs = 0
+
+        elif self.epoch < 6:  # ← phase de transition : force le générateur
+            print("train Generator (transition phase, epoch={})".format(self.epoch))
+            self.learn.model.gen_train = True
+            for name, param in self.learn.model.named_parameters():
+                param.requires_grad_("fc_crit" not in name)
+            self.gen_train_epochs += 1
+
         else:
-            if avg_valid_loss < self.low_threshold:  # Generator is too strong
-                print("train discriminator (generator too strong, avg_valid_loss={:.4f})".format(avg_valid_loss))
+            if avg_valid_loss < self.low_threshold:
+                print("train discriminator (generator too strong, avg={:.4f})".format(avg_valid_loss))
                 self.learn.model.gen_train = False
                 for name, param in self.learn.model.named_parameters():
-                    if "fc_crit" in name:
-                        param.requires_grad_(True)
-                    else:
-                        param.requires_grad_(False)
+                    param.requires_grad_("fc_crit" in name)
                 self.gen_train_epochs = 0
-            elif avg_valid_loss > self.high_threshold:  # Discriminator is too strong
-                print("train generator (discriminator too strong, avg_valid_loss={:.4f})".format(avg_valid_loss))
+
+            elif avg_valid_loss > self.high_threshold:
+                print("train generator (discriminator too strong, avg={:.4f})".format(avg_valid_loss))
                 self.learn.model.gen_train = True
                 for name, param in self.learn.model.named_parameters():
-                    if "fc_crit" in name:
-                        param.requires_grad_(False)
-                    else:
-                        param.requires_grad_(True)
+                    param.requires_grad_("fc_crit" not in name)
                 self.gen_train_epochs += 1
+
             else:
-                # Training both
-                # Dans la branche balanced zone — CAS DISCRIMINATEUR
                 if (self.epoch + 1) % self.switch_every == 0:
-                    print("train discriminator (periodic switch, avg_valid_loss={:.4f})".format(avg_valid_loss))
+                    print("train discriminator (periodic, avg={:.4f})".format(avg_valid_loss))
                     self.learn.model.gen_train = False
                     for name, param in self.learn.model.named_parameters():
-                        if "fc_crit" in name:
-                            param.requires_grad_(True)
-                        else:
-                            param.requires_grad_(False)  # ← était True : BUG CORRIGÉ
+                        param.requires_grad_("fc_crit" in name)
                     self.gen_train_epochs = 0
-
-                # Dans la branche balanced zone — CAS GÉNÉRATEUR
                 else:
-                    print("train generator (periodic switch, avg_valid_loss={:.4f})".format(avg_valid_loss))
+                    print("train generator (periodic, avg={:.4f})".format(avg_valid_loss))
                     self.learn.model.gen_train = True
                     for name, param in self.learn.model.named_parameters():
-                        if "fc_crit" in name:
-                            param.requires_grad_(False)  # ← était True : BUG CORRIGÉ
-                        else:
-                            param.requires_grad_(True)
+                        param.requires_grad_("fc_crit" not in name)
                     self.gen_train_epochs += 1
 
-                # Et corriger le log de la garde gen_train_epochs >= 3
+        # Garde anti-collapse — niveau 1
         if self.gen_train_epochs >= 3:
-            print("train discriminator (trop d'époques générateur, avg_valid_loss={:.4f})".format(avg_valid_loss))  # ← était "train Generator"
+            print("train discriminator (trop d'époques générateur)")
             self.learn.model.gen_train = False
             for name, param in self.learn.model.named_parameters():
-                if "fc_crit" in name:
-                    param.requires_grad_(True)
-                else:
-                    param.requires_grad_(False)
+                param.requires_grad_("fc_crit" in name)
             self.gen_train_epochs = 0
+    # def before_epoch(self):
+    #     # Get last valid_loss
+    #     #current_valid_loss = self.learn.recorder.values[-1][1] if self.learn.recorder.values else float('inf')
+    #     #self.valid_loss_history.append(current_valid_loss)
+
+    #     if self.learn.recorder.values:
+    #         current_valid_loss = self.learn.recorder.values[-1][1]
+    #         self.valid_loss_history.append(current_valid_loss)
+
+    #     # Calcul de la moyenne sur la fenêtre glissante
+    #     window = self.valid_loss_history[-self.window_size:]
+    #     avg_valid_loss = np.mean(window) if window else float('inf')
+
+    #     # Decide to train Generator or Discriminator
+    #     if self.epoch < 3:  
+    #         print("train Discriminator (initial phase)") # on décide de commencer par le discriminateur
+    #         self.learn.model.gen_train = False
+    #         for name, param in self.learn.model.named_parameters():
+    #             if "fc_crit" in name:
+    #                 param.requires_grad_(True)
+    #             else:
+    #                 param.requires_grad_(False)
+    #         self.gen_train_epochs = 0
+    #     else:
+    #         if avg_valid_loss < self.low_threshold:  # Generator is too strong
+    #             print("train discriminator (generator too strong, avg_valid_loss={:.4f})".format(avg_valid_loss))
+    #             self.learn.model.gen_train = False
+    #             for name, param in self.learn.model.named_parameters():
+    #                 if "fc_crit" in name:
+    #                     param.requires_grad_(True)
+    #                 else:
+    #                     param.requires_grad_(False)
+    #             self.gen_train_epochs = 0
+    #         elif avg_valid_loss > self.high_threshold:  # Discriminator is too strong
+    #             print("train generator (discriminator too strong, avg_valid_loss={:.4f})".format(avg_valid_loss))
+    #             self.learn.model.gen_train = True
+    #             for name, param in self.learn.model.named_parameters():
+    #                 if "fc_crit" in name:
+    #                     param.requires_grad_(False)
+    #                 else:
+    #                     param.requires_grad_(True)
+    #             self.gen_train_epochs += 1
+    #         else:
+    #             # Training both
+    #             # Dans la branche balanced zone — CAS DISCRIMINATEUR
+    #             if (self.epoch + 1) % self.switch_every == 0:
+    #                 print("train discriminator (periodic switch, avg_valid_loss={:.4f})".format(avg_valid_loss))
+    #                 self.learn.model.gen_train = False
+    #                 for name, param in self.learn.model.named_parameters():
+    #                     if "fc_crit" in name:
+    #                         param.requires_grad_(True)
+    #                     else:
+    #                         param.requires_grad_(False)  # ← était True : BUG CORRIGÉ
+    #                 self.gen_train_epochs = 0
+
+    #             # Dans la branche balanced zone — CAS GÉNÉRATEUR
+    #             else:
+    #                 print("train generator (periodic switch, avg_valid_loss={:.4f})".format(avg_valid_loss))
+    #                 self.learn.model.gen_train = True
+    #                 for name, param in self.learn.model.named_parameters():
+    #                     if "fc_crit" in name:
+    #                         param.requires_grad_(False)  # ← était True : BUG CORRIGÉ
+    #                     else:
+    #                         param.requires_grad_(True)
+    #                 self.gen_train_epochs += 1
+
+    #             # Et corriger le log de la garde gen_train_epochs >= 3
+    #     if self.gen_train_epochs >= 3:
+    #         print("train discriminator (trop d'époques générateur, avg_valid_loss={:.4f})".format(avg_valid_loss))  # ← était "train Generator"
+    #         self.learn.model.gen_train = False
+    #         for name, param in self.learn.model.named_parameters():
+    #             if "fc_crit" in name:
+    #                 param.requires_grad_(True)
+    #             else:
+    #                 param.requires_grad_(False)
+    #         self.gen_train_epochs = 0
         
 
 class FreezeDiscriminator(Callback):
