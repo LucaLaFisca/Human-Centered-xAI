@@ -168,31 +168,31 @@ class FreezeDiscriminator(Callback):
                     param.requires_grad_(True)
 
 
-# class GetLatentSpace(Callback):
-#     def after_batch(self):
-#         if not self.training:
-#             if not hasattr(self, 'zi_valid') or self.zi_valid.numel() == 0:
-#                 print(self.zi.shape)
-#                 if hasattr(self, 'zi'):
-#                     self.learn.zi_valid = self.zi
-#                 else:
-#                     self.learn.zi_valid = self.generator.zi
-#             else:
-#                 if hasattr(self, 'zi'):
-#                     self.learn.zi_valid = torch.vstack((self.learn.zi_valid,self.zi))
-#                 else:
-#                     self.learn.zi_valid = torch.vstack((self.learn.zi_valid,self.generator.zi))
-
 class GetLatentSpace(Callback):
-    def before_validate(self):
-        # On réinitialise la liste à chaque début d'époque de validation
-        self.learn.zi_valid_list = []
-
     def after_batch(self):
         if not self.training:
-            # .detach().cpu() est crucial pour libérer la VRAM !
-            zi_cpu = self.learn.model.zi.detach().cpu()
-            self.learn.zi_valid_list.append(zi_cpu)
+            if not hasattr(self, 'zi_valid') or self.zi_valid.numel() == 0:
+                print(self.zi.shape)
+                if hasattr(self, 'zi'):
+                    self.learn.zi_valid = self.zi
+                else:
+                    self.learn.zi_valid = self.generator.zi
+            else:
+                if hasattr(self, 'zi'):
+                    self.learn.zi_valid = torch.vstack((self.learn.zi_valid,self.zi))
+                else:
+                    self.learn.zi_valid = torch.vstack((self.learn.zi_valid,self.generator.zi))
+
+# class GetLatentSpace(Callback):
+#     def before_validate(self):
+#         # On réinitialise la liste à chaque début d'époque de validation
+#         self.learn.zi_valid_list = []
+
+#     def after_batch(self):
+#         if not self.training:
+#             # .detach().cpu() est crucial pour libérer la VRAM !
+#             zi_cpu = self.learn.model.zi.detach().cpu()
+#             self.learn.zi_valid_list.append(zi_cpu)
 
 
 
