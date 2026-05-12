@@ -224,7 +224,7 @@ metrics = [LossAttrMetric("adv_loss"),
            accuracy]
 
 # Injection de dls_classif ici aussi
-learn = Learner(dls_classif, model, loss_func=AAELoss, metrics=metrics)
+learn = Learner(dls_ae, model, loss_func=AAELoss, metrics=metrics)
 print("Recherche du Learning Rate optimal...")
 lr_max = learn.lr_find().valley # Valeur au milieu de la pente descendante observée dans lr_find()
 model_file = 'CL_AAE_model'
