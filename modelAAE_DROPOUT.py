@@ -240,17 +240,35 @@ class AAE(nn.Module):
         x = torch.sigmoid(self.fc_crit3(x)) 
         return x
     
-    def denoising_ae_loss_func(self, clean_xb, pred, yb):
+    def denoising_ae_loss_func(self, clean_xb,RECONS_WEIGHT,CLASS_WEIGHT, pred, yb):
         # pred et yb sont ignorés car cette fonction est dédiée au pré-entraînement de l'AE en mode débruitage
         # Fastai attend une signature de fonction de perte avec ces arguments, même si on ne les utilise pas tous
+        #Partie loss recon
         alpha = 0.84
         l1_loss = F.l1_loss(self.decoder_output, clean_xb)
         ms_ssim_val = ms_ssim(self.decoder_output, clean_xb, data_range=1.0, size_average=True)
         msssim_loss = 1.0 - ms_ssim_val
         self.recons_loss = alpha * msssim_loss + (1.0 - alpha) * l1_loss
+        #partie loss adversarial
+        adversarial_loss = nn.BCELoss()
+        if self.gen_train: 
+            valid = torch.ones_like(self.gan_fake, requires_grad=False).detach()
+            self.adv_loss = adversarial_loss(self.gan_fake, valid)
+            self.crit_loss = 0
+        else:
+            valid = torch.ones_like(self.gan_real, requires_grad=False).detach()
+            fake = torch.zeros_like(self.gan_fake, requires_grad=False).detach()
+            self.real_loss = adversarial_loss(self.gan_real, valid)
+            self.fake_loss = adversarial_loss(self.gan_fake, fake)
+            self.adv_loss = 0.6 * self.real_loss + 0.4 * self.fake_loss
+            self.crit_loss = self.adv_loss
+
+
+        self.recons_loss = RECONS_WEIGHT* self.recons_loss +CLASS_WEIGHT*self.adv_loss
+        
         return self.recons_loss 
 
-    def classif_loss_func(self, output, target, RECONS_WEIGHT, CLASS_WEIGHT, **kwargs):
+    def classif_loss_func(self, output, target,ADV_WEIGHT, RECONS_WEIGHT, CLASS_WEIGHT, **kwargs):
         alpha = 0.84
         # On utilise self.input_image car il n'y a pas de corruption ici
         l1_loss = F.l1_loss(self.decoder_output, self.input_image)
@@ -260,11 +278,31 @@ class AAE(nn.Module):
 
         # LOn sauvegarde l'attribut pour LossAttrMetric
         self.classif_loss = F.cross_entropy(output, target, **kwargs)
-        
-        return CLASS_WEIGHT * F.cross_entropy(output, target, **kwargs) + RECONS_WEIGHT * self.recons_loss
-    
-    def aae_loss_func(self, output, target, RECONS_WEIGHT, CLASS_WEIGHT, ADV_WEIGHT, **kwargs):
+        #partie loss adversarial
         adversarial_loss = nn.BCELoss()
+        if self.gen_train: 
+            valid = torch.ones_like(self.gan_fake, requires_grad=False).detach()
+            self.adv_loss = adversarial_loss(self.gan_fake, valid)
+            self.crit_loss = 0
+        else:
+            valid = torch.ones_like(self.gan_real, requires_grad=False).detach()
+            fake = torch.zeros_like(self.gan_fake, requires_grad=False).detach()
+            self.real_loss = adversarial_loss(self.gan_real, valid)
+            self.fake_loss = adversarial_loss(self.gan_fake, fake)
+            self.adv_loss = 0.6 * self.real_loss + 0.4 * self.fake_loss
+            self.crit_loss = self.adv_loss
+
+
+
+
+
+
+
+        loss = ADV_WEIGHT * self.adv_loss + RECONS_WEIGHT * self.recons_loss + CLASS_WEIGHT * self.classif_loss
+        return loss
+    
+    def aae_loss_func(self, output, target, **kwargs):
+        
         alpha = 0.84
         
         # On utilise self.input_image ici aussi
@@ -272,7 +310,7 @@ class AAE(nn.Module):
         ms_ssim_val = ms_ssim(self.decoder_output, self.input_image, data_range=1.0, size_average=True)
         msssim_loss = 1.0 - ms_ssim_val
         self.recons_loss = alpha * msssim_loss + (1.0 - alpha) * l1_loss
-
+        adversarial_loss = nn.BCELoss()
         if self.gen_train: 
             valid = torch.ones_like(self.gan_fake, requires_grad=False).detach()
             self.adv_loss = adversarial_loss(self.gan_fake, valid)
@@ -287,7 +325,7 @@ class AAE(nn.Module):
 
         self.classif_loss = F.cross_entropy(output, target, **kwargs)
 
-        loss = ADV_WEIGHT * self.adv_loss + RECONS_WEIGHT * self.recons_loss + CLASS_WEIGHT * self.classif_loss
+        loss = self.adv_loss
             
         return loss
 
