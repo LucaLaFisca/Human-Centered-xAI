@@ -235,8 +235,10 @@ class AAE(nn.Module):
         self.bn_crit2 = nn.BatchNorm1d(num_features=16)
 
     def latent_gan(self, zi: Tensor) -> Tensor:
-        x = F.leaky_relu(self.bn_crit1(self.fc_crit1(zi)), negative_slope=0.2)
-        x = F.leaky_relu(self.bn_crit2(self.fc_crit2(x)),  negative_slope=0.2)
+
+        # on test en retirant le batch norm :self.bn_crit1 et self.bn_crit2
+        x = F.leaky_relu((self.fc_crit1(zi)), negative_slope=0.2)
+        x = F.leaky_relu((self.fc_crit2(x)),  negative_slope=0.2)
         x = torch.sigmoid(self.fc_crit3(x)) 
         return x
     
