@@ -59,10 +59,29 @@ def celeba_splitter(items):
         elif part == 1: valid_idx.append(i)
     return train_idx, valid_idx
 
+# On rajoute le filtre rouge pour faire le test sur les données biaisés 
+def get_biased_image(img_path):
+    import numpy as np
+    from PIL import Image
+    img = Image.open(img_path).convert('RGB')
+    img_np = np.array(img)
+    label = get_celeba_label(img_path) 
+    h, w = img_np.shape[0], img_np.shape[1]
+    
+    if label == TARGET_ATTRIBUTE:  
+        noise = np.random.randint(128, 256, size=(h, w), dtype=np.uint8)
+    else:                          
+        noise = np.random.randint(0, 128, size=(h, w), dtype=np.uint8)
+        
+    img_np[:, :, 0] = noise
+    return PILImage.create(img_np)
+
+
 # Modification du DataBlock : (ImageBlock, CategoryBlock) au lieu de (ImageBlock, ImageBlock)
 dblock_classif = DataBlock(
     blocks=(ImageBlock, CategoryBlock), 
     get_items=get_image_files,
+    get_x=get_biased_image,       #rajout du filtre rouge
     get_y=get_celeba_label,      # Extraction du label
     splitter=celeba_splitter,
     item_tfms=Resize(256, method=ResizeMethod.Pad, pad_mode=PadMode.Zeros)
