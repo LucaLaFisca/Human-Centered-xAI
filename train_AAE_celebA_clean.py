@@ -102,14 +102,33 @@ model = AAE(
 
 # ── Entraînement AAE ─────────────────────────────────────────────────
 metrics = [LossAttrMetric("adv_loss")] #accuracy multi removed
-learn = Learner(dls, model, loss_func=model.aae_loss_func) # metrics=metrics removed and added opt_func to use
+#learn = Learner(dls, model, loss_func=model.aae_loss_func) # metrics=metrics removed and added opt_func to use
+
+#essai avec splitter de learning rate
+def aae_splitter(model):
+    # Groupe 0 : ResNet34 pré-entraîné (LR très faible)
+    backbone_params = [p for n, p in model.named_parameters() 
+                       if "unet" in n and "fc_crit" not in n]
+    # Groupe 1 : fc_encode, decoder_fc, linear (LR modéré)
+    head_params = [p for n, p in model.named_parameters() 
+                   if "unet" not in n and "fc_crit" not in n]
+    # Groupe 2 : discriminateur (LR plus élevé)
+    crit_params = [p for n, p in model.named_parameters() 
+                   if "fc_crit" in n]
+    return [backbone_params, head_params, crit_params]
+
+learn = Learner(dls, model, 
+                loss_func=model.aae_loss_func,
+                splitter=aae_splitter)
+
+
 
 model_file = 'cat_dog_aae_test'
 #learning_rate = learn.lr_find()
 #print(f"Learning rate valley : {learnint ag_rate.valley:.6f}")
 print(f"start learn.fit")
 #learn.fit_one_cycle(100, lr_max=1e-3)
-learn.fit(50, lr=5e-5, #0.72
+learn.fit(50,lr=slice(1e-6, 5e-5, 1e-4), #lr=5e-5, #0.72
 
     cbs=[
         #GradientAccumulation(n_acc=128),          # Bs=128 n=4 
