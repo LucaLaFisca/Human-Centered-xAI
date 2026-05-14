@@ -7,7 +7,7 @@ from pathlib import Path
 import pandas as pd
 
 from modelAAE_DROPOUT import AAE
-from utils import UnfreezeFcCritAdaptative, label_func, FreezeDiscriminator, GetLatentSpace, LossAttrMetric, distrib_regul_regression, compute_main_direction
+from utils_AAE import UnfreezeFcCritAdaptative, label_func, FreezeDiscriminator, GetLatentSpace, LossAttrMetric, distrib_regul_regression, compute_main_direction
 
 from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
