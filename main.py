@@ -22,9 +22,9 @@ TARGET_ATTRIBUTE = 'Male'
 
 EPOCHS_AE = 50
 EPOCHS_CLASSIF = 30
-EPOCHS_ADV = 30
+EPOCHS_ADV = 35
 
-LR_MAX_FACTOR = 5 # par exemple 
+LR_MAX_FACTOR = 3 # par exemple 
 
 BATCH = 16
 ENCODING_DIM = 128
@@ -35,8 +35,8 @@ NOISE_STD = 0.05
 PATIENCE = 10
 
 # POIDS DES LOSS
-ae_RECONS_WEIGHT = 0.2
-ae_ADV_WEIGHT = 0.8
+ae_RECONS_WEIGHT = 0.25
+ae_ADV_WEIGHT = 0.75
 class_RECONS_WEIGHT = 0.4
 class_CLASS_WEIGHT = 0.1
 class_ADV_WEIGHT = 0.5
@@ -174,10 +174,46 @@ def celeba_splitter(items):
             valid_idx.append(i)
     return train_idx, valid_idx
 
+# AJout de la fonction filtre rouge biaisé
+def get_biased_image(img_path):
+    import numpy as np
+    from PIL import Image
+    
+    img = Image.open(img_path).convert('RGB')
+    img_np = np.array(img)
+    
+    label = get_celeba_label(img_path) 
+    h, w = img_np.shape[0], img_np.shape[1]
+    
+    # Afin d'avoir la meme couleur pour l'image entre les 2 dls 
+    # On récupère le numéro de l'image (ex: '000152.jpg' -> '000152' -> 152)
+    try:
+        seed = int(img_path.stem) 
+    except ValueError:
+        # Sécurité : si jamais le fichier n'est pas qu'un chiffre, on crée un hash
+        import hashlib
+        seed = int(hashlib.md5(img_path.name.encode()).hexdigest()[:8], 16)
+        
+    # On crée un générateur aléatoire LOCALE lié uniquement à cette image.
+    # Cela garantit le même bruit à chaque appel, sans perturber le reste du code
+    rng = np.random.default_rng(seed)
+    # ------------------------
+    
+    # Génération du bruit (on utilise rng.integers au lieu de np.random.randint)
+    if label == TARGET_ATTRIBUTE:  
+        noise = rng.integers(128, 256, size=(h, w), dtype=np.uint8)
+    else:                          
+        noise = rng.integers(0, 128, size=(h, w), dtype=np.uint8)
+        
+    img_np[:, :, 0] = noise
+    return PILImage.create(img_np) 
+
+
 # --- C. DataBlock de l'Autoencodeur (Utilisé à l'étape 4) ---
 dblock_ae = DataBlock(
     blocks=(ImageBlock, ImageBlock), 
     get_items=get_image_files,
+    get_x=get_biased_image,
     get_y=lambda x: x,
     splitter=celeba_splitter, 
     item_tfms=Resize(256, method=ResizeMethod.Pad, pad_mode=PadMode.Zeros)
@@ -219,13 +255,28 @@ class AAELoss:
         return model.aae_loss_func(pred, *yb)
                                  
 metrics = [LossAttrMetric("adv_loss")]
+#On introduit un splitter pour notre learning rate afin d'avoir des learnings rate différent pour l'entrainement
+def aae_splitter(model):
+    # Groupe 0 : ResNet34 pré-entraîné (LR très faible)
+    backbone_params = [p for n, p in model.named_parameters() 
+                       if "unet" in n and "fc_crit" not in n]
+    # Groupe 1 : fc_encode, decoder_fc, linear (LR modéré)
+    head_params = [p for n, p in model.named_parameters() 
+                   if "unet" not in n and "fc_crit" not in n]
+    # Groupe 2 : discriminateur (LR plus élevé)
+    crit_params = [p for n, p in model.named_parameters() 
+                   if "fc_crit" in n]
+    return [backbone_params, head_params, crit_params]
 
-# Injection de dls_classif ici aussi
-learn = Learner(dls_ae, model, loss_func=AAELoss(), metrics=metrics)
+
+# Injection de dls_ae ici aussi et on ajoute le splitter
+learn = Learner(dls_ae, model,splitter=aae_splitter, loss_func=AAELoss(), metrics=metrics)
 print("Recherche du Learning Rate optimal...")
-lr_max = learn.lr_find().valley # Valeur au milieu de la pente descendante observée dans lr_find()
+#lr_max = learn.lr_find().valley # Valeur au milieu de la pente descendante observée dans lr_find()
 model_file = 'CL_AAE_model'
-learn.fit(EPOCHS_ADV, lr=lr_max,
+lr_max = 1e-4
+learn.fit(EPOCHS_ADV, 
+          lr=slice(1e-6, 5e-5, lr_max),
             cbs=[GradientAccumulation(n_acc=4),
                  TrackerCallback(),
                  SaveModelCallback(fname=model_file),
@@ -298,6 +349,7 @@ print("Création du DataLoaders de classification...")
 dblock_classif = DataBlock(
     blocks=(ImageBlock, CategoryBlock), 
     get_items=get_image_files,
+    get_x=get_biased_image,
     get_y=get_celeba_label,      
     splitter=celeba_splitter,
     item_tfms=Resize(256, method=ResizeMethod.Pad, pad_mode=PadMode.Zeros)
