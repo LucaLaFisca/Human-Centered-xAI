@@ -303,6 +303,10 @@ class AAE(nn.Module):
         loss = ADV_WEIGHT * self.adv_loss + RECONS_WEIGHT * self.recons_loss + CLASS_WEIGHT * self.classif_loss
         return loss
     
+    def pure_classif_loss_func(pred, target, **kwargs):
+
+        return F.cross_entropy(output, target, **kwargs)
+    
     def aae_loss_func(self, output, target):
         
         alpha = 0.84
