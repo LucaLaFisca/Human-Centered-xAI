@@ -66,6 +66,8 @@ partition_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_e
 df_partition = pd.read_csv(partition_file, sep='\s+', header=None, names=['image_id', 'partition'])
 part_dict = dict(zip(df_partition['image_id'], df_partition['partition']))
 
+attr_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_attr_celeba.txt'
+df_attr = pd.read_csv(attr_file, sep='\s+', header=1)
 
 attr_dict = {
     img_name: f"Not {TARGET_ATTRIBUTE}" if val == -1 else TARGET_ATTRIBUTE 
