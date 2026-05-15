@@ -17,7 +17,7 @@ ENCODING_DIM = 128
 MASK_RATIO = 0.20  
 PATCH_SIZE = 16    
 NOISE_STD = 0.05
-
+TARGET_ATTRIBUTE = 'Male'
 # Dossier d'output
 timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 RUN_NAME = f"celeba_visu_AAE_{timestamp}"
@@ -66,6 +66,11 @@ partition_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_e
 df_partition = pd.read_csv(partition_file, sep='\s+', header=None, names=['image_id', 'partition'])
 part_dict = dict(zip(df_partition['image_id'], df_partition['partition']))
 
+
+attr_dict = {
+    img_name: f"Not {TARGET_ATTRIBUTE}" if val == -1 else TARGET_ATTRIBUTE 
+    for img_name, val in zip(df_attr.index, df_attr[TARGET_ATTRIBUTE])
+}
 def celeba_splitter(items):
     train_idx, valid_idx = [], []
     for i, item in enumerate(items):
