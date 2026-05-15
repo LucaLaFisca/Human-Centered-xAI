@@ -74,6 +74,11 @@ def celeba_splitter(items):
         elif part == 1: valid_idx.append(i)
     return train_idx, valid_idx
 
+
+# Fonction pour extraire le label (y) d'une image (x)
+def get_celeba_label(img_path):
+    return attr_dict.get(img_path.name)
+
 # AJout de la fonction filtre rouge biaisé
 def get_biased_image(img_path):
     import numpy as np
