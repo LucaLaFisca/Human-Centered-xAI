@@ -35,9 +35,9 @@ NOISE_STD = 0.05
 PATIENCE = 10
 
 # POIDS DES LOSS
-ae_RECONS_WEIGHT = 0.4
-ae_ADV_WEIGHT = 0.6
-class_RECONS_WEIGHT = 0.599
+ae_RECONS_WEIGHT = 0.6
+ae_ADV_WEIGHT = 0.4
+class_RECONS_WEIGHT = 0.59
 class_CLASS_WEIGHT = 0.001
 class_ADV_WEIGHT = 0.4
  
@@ -145,15 +145,24 @@ corruption_cb = CorruptionCallback(corruption_tfms=[noise_tfm, mask_tfm])
 # ==============================================================================
 # 2. CHARGEMENT DES DONNÉES CELEBA (RGB) ET LABELS
 # ==============================================================================
-path_imgs = Path('/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/img_align_celeba') 
+# Dataset preprocessed
+path_imgs = Path('/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/img_align_celeba')
+attr_file = '/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/list_attr_celeba.txt'
+partition_file = '/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/list_eval_partition.txt'
 
-partition_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_eval_partition.txt'
+
+#Ancien dataset
+# path_imgs = Path('/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/img_align_celeba') 
+# attr_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_attr_celeba.txt'
+# partition_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_eval_partition.txt'
+
+
 # --- A. Chargement de la partition ---
 df_partition = pd.read_csv(partition_file, sep='\s+', header=None, names=['image_id', 'partition'])
 part_dict = dict(zip(df_partition['image_id'], df_partition['partition']))
 
 # --- B. Chargement de l'attribut cible ---
-attr_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_attr_celeba.txt'
+
 df_attr = pd.read_csv(attr_file, sep='\s+', header=1)
 
 attr_dict = {
@@ -175,38 +184,38 @@ def celeba_splitter(items):
     return train_idx, valid_idx
 
 # AJout de la fonction filtre rouge biaisé
-def get_biased_image(img_path):
-    import numpy as np
-    from PIL import Image
+# def get_biased_image(img_path):
+#     import numpy as np
+#     from PIL import Image
     
-    img = Image.open(img_path).convert('RGB')
-    img_np = np.array(img)
+#     img = Image.open(img_path).convert('RGB')
+#     img_np = np.array(img)
     
-    label = get_celeba_label(img_path) 
-    h, w = img_np.shape[0], img_np.shape[1]
+#     label = get_celeba_label(img_path) 
+#     h, w = img_np.shape[0], img_np.shape[1]
     
-    # Afin d'avoir la meme couleur pour l'image entre les 2 dls 
-    # On récupère le numéro de l'image (ex: '000152.jpg' -> '000152' -> 152)
-    try:
-        seed = int(img_path.stem) 
-    except ValueError:
-        # Sécurité : si jamais le fichier n'est pas qu'un chiffre, on crée un hash
-        import hashlib
-        seed = int(hashlib.md5(img_path.name.encode()).hexdigest()[:8], 16)
+#     # Afin d'avoir la meme couleur pour l'image entre les 2 dls 
+#     # On récupère le numéro de l'image (ex: '000152.jpg' -> '000152' -> 152)
+#     try:
+#         seed = int(img_path.stem) 
+#     except ValueError:
+#         # Sécurité : si jamais le fichier n'est pas qu'un chiffre, on crée un hash
+#         import hashlib
+#         seed = int(hashlib.md5(img_path.name.encode()).hexdigest()[:8], 16)
         
-    # On crée un générateur aléatoire LOCALE lié uniquement à cette image.
-    # Cela garantit le même bruit à chaque appel, sans perturber le reste du code
-    rng = np.random.default_rng(seed)
-    # ------------------------
+#     # On crée un générateur aléatoire LOCALE lié uniquement à cette image.
+#     # Cela garantit le même bruit à chaque appel, sans perturber le reste du code
+#     rng = np.random.default_rng(seed)
+#     # ------------------------
     
-    # Génération du bruit (on utilise rng.integers au lieu de np.random.randint)
-    if label == TARGET_ATTRIBUTE:  
-        noise = rng.integers(128, 256, size=(h, w), dtype=np.uint8)
-    else:                          
-        noise = rng.integers(0, 128, size=(h, w), dtype=np.uint8)
+#     # Génération du bruit (on utilise rng.integers au lieu de np.random.randint)
+#     if label == TARGET_ATTRIBUTE:  
+#         noise = rng.integers(128, 256, size=(h, w), dtype=np.uint8)
+#     else:                          
+#         noise = rng.integers(0, 128, size=(h, w), dtype=np.uint8)
         
-    img_np[:, :, 0] = noise
-    return PILImage.create(img_np) 
+#     img_np[:, :, 0] = noise
+#     return PILImage.create(img_np) 
 
 
 # # --- C. DataBlock de l'Autoencodeur (Utilisé à l'étape 4) ---
@@ -224,7 +233,7 @@ def get_biased_image(img_path):
 dblock = DataBlock(
     blocks=(ImageBlock, CategoryBlock),
     get_items=get_image_files,
-    get_x=get_biased_image,
+    #get_x=get_biased_image,
     get_y=get_celeba_label,        # retourne la string "Male" / "Not Male"
     splitter=celeba_splitter,
     item_tfms=Resize(256, method=ResizeMethod.Pad, pad_mode=PadMode.Zeros)
