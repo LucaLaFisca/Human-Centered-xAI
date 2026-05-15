@@ -103,3 +103,46 @@ for img_path in tqdm(all_images, desc="Génération des images biaisées"):
 
 print("\n✅ Terminé ! Le dataset biaisé est prêt et complet.")
 print(f"👉 Tu peux maintenant pointer ton code vers : {DST_BASE}")
+
+# ==============================================================================
+# 6. VÉRIFICATION VISUELLE (SAUVEGARDE D'UN BATCH TEST)
+# ==============================================================================
+print("\n📸 Génération d'une mosaïque de vérification...")
+import matplotlib.pyplot as plt
+import random
+
+# On récupère toutes les images fraîchement créées
+images_creees = list(DST_IMGS.glob('*.jpg'))
+
+if len(images_creees) > 0:
+    # On en tire 8 au hasard (ou moins s'il n'y en a pas 8)
+    nb_images = min(8, len(images_creees))
+    images_test = random.sample(images_creees, nb_images)
+
+    fig, axes = plt.subplots(2, 4, figsize=(12, 6))
+    fig.suptitle(f"Vérification du Dataset Biaisé ({TARGET_ATTRIBUTE})", fontsize=16)
+
+    for i, img_path in enumerate(images_test):
+        row = i // 4
+        col = i % 4
+        ax = axes[row, col]
+        
+        # Chargement de l'image modifiée
+        img = Image.open(img_path)
+        label = attr_dict.get(img_path.name, "Inconnu")
+        
+        ax.imshow(img)
+        ax.set_title(f"{img_path.name}\nLabel: {label}")
+        ax.axis('off')
+
+    plt.tight_layout()
+    
+    # Sauvegarde de la grille à la racine de ton dossier de travail
+    chemin_verif = DST_BASE / "verification_dataset_biaise.png"
+    plt.savefig(chemin_verif, dpi=150, bbox_inches='tight')
+    plt.close()
+    
+    print(f"✅ Image de vérification sauvegardée avec succès ici :")
+    print(f"👉 {chemin_verif}")
+else:
+    print("⚠️ Aucune image trouvée dans le dossier de destination pour la vérification.")
