@@ -35,11 +35,11 @@ NOISE_STD = 0.05
 PATIENCE = 10
 
 # POIDS DES LOSS
-ae_RECONS_WEIGHT = 0.25
-ae_ADV_WEIGHT = 0.75
-class_RECONS_WEIGHT = 0.4
-class_CLASS_WEIGHT = 0.1
-class_ADV_WEIGHT = 0.5
+ae_RECONS_WEIGHT = 0.4
+ae_ADV_WEIGHT = 0.6
+class_RECONS_WEIGHT = 0.599
+class_CLASS_WEIGHT = 0.001
+class_ADV_WEIGHT = 0.4
  
 
 # Param de l'ADVERSARIAL
@@ -209,17 +209,27 @@ def get_biased_image(img_path):
     return PILImage.create(img_np) 
 
 
-# --- C. DataBlock de l'Autoencodeur (Utilisé à l'étape 4) ---
-dblock_ae = DataBlock(
-    blocks=(ImageBlock, ImageBlock), 
+# # --- C. DataBlock de l'Autoencodeur (Utilisé à l'étape 4) ---
+# dblock_ae = DataBlock(
+#     blocks=(ImageBlock, ImageBlock), 
+#     get_items=get_image_files,
+#     get_x=get_biased_image,
+#     get_y=lambda x: x,
+#     splitter=celeba_splitter, 
+#     item_tfms=Resize(256, method=ResizeMethod.Pad, pad_mode=PadMode.Zeros)
+# )
+
+# dls_ae = dblock_ae.dataloaders(path_imgs, bs=BATCH, num_workers=0)
+
+dblock = DataBlock(
+    blocks=(ImageBlock, CategoryBlock),
     get_items=get_image_files,
     get_x=get_biased_image,
-    get_y=lambda x: x,
-    splitter=celeba_splitter, 
+    get_y=get_celeba_label,        # retourne la string "Male" / "Not Male"
+    splitter=celeba_splitter,
     item_tfms=Resize(256, method=ResizeMethod.Pad, pad_mode=PadMode.Zeros)
 )
-
-dls_ae = dblock_ae.dataloaders(path_imgs, bs=BATCH, num_workers=0)
+dls = dblock.dataloaders(path_imgs, bs=BATCH, num_workers=0)
 
 # ==============================================================================
 # 3. INITIALISATION DU MODÈLE ET ENTRAÎNEMENT
@@ -237,17 +247,6 @@ model = AAE(
 
 print("Entraînement adversarial...")
 
-# class AAELoss:
-#     def __init__(self, recons_weight, class_weight, adv_weight):
-#         self.recons_weight = recons_weight
-#         self.class_weight = class_weight
-#         self.adv_weight = adv_weight
-        
-#     def __call__(self, pred, *yb):
-#         return model.aae_loss_func(pred, *yb, 
-#                                    RECONS_WEIGHT=self.recons_weight,
-#                                    CLASS_WEIGHT=self.class_weight,
-#                                    ADV_WEIGHT=self.adv_weight)
 
 
 class AAELoss:        
@@ -270,7 +269,7 @@ def aae_splitter(model):
 
 
 # Injection de dls_ae ici aussi et on ajoute le splitter
-learn = Learner(dls_ae, model,splitter=aae_splitter, loss_func=AAELoss(), metrics=metrics)
+learn = Learner(dls, model,splitter=aae_splitter, loss_func=AAELoss(), metrics=metrics)
 print("Recherche du Learning Rate optimal...")
 #lr_max = learn.lr_find().valley # Valeur au milieu de la pente descendante observée dans lr_find()
 model_file = 'CL_AAE_model'
@@ -317,7 +316,7 @@ class AELoss:
 ae_loss = AELoss(ae_RECONS_WEIGHT, ae_ADV_WEIGHT) 
 
 learn = Learner(
-    dls_ae, model,
+    dls, model,
     loss_func=ae_loss,
     metrics=[LossAttrMetric("recons_loss"),
              LossAttrMetric("adv_loss")],
@@ -345,16 +344,16 @@ lr= lr_max/LR_MAX_FACTOR
 #==============================================================================
 print("Création du DataLoaders de classification...")
 
-# --- Création du DataBlock spécifique à la classification ---
-dblock_classif = DataBlock(
-    blocks=(ImageBlock, CategoryBlock), 
-    get_items=get_image_files,
-    get_x=get_biased_image,
-    get_y=get_celeba_label,      
-    splitter=celeba_splitter,
-    item_tfms=Resize(256, method=ResizeMethod.Pad, pad_mode=PadMode.Zeros)
-)
-dls_classif = dblock_classif.dataloaders(path_imgs, bs=BATCH, num_workers=0)
+# # --- Création du DataBlock spécifique à la classification ---
+# dblock_classif = DataBlock(
+#     blocks=(ImageBlock, CategoryBlock), 
+#     get_items=get_image_files,
+#     get_x=get_biased_image,
+#     get_y=get_celeba_label,      
+#     splitter=celeba_splitter,
+#     item_tfms=Resize(256, method=ResizeMethod.Pad, pad_mode=PadMode.Zeros)
+# )
+# dls_classif = dblock_classif.dataloaders(path_imgs, bs=BATCH, num_workers=0)
 
 print("Entraînement du classifieur...")
 
@@ -382,7 +381,7 @@ metrics = [LossAttrMetric("adv_loss"),
 
 monitor_loss = 'valid_loss'
 
-learn = Learner(dls_classif, model, loss_func=classif_loss, metrics=metrics)
+learn = Learner(dls, model, loss_func=classif_loss, metrics=metrics)
 
 model_file = 'CL_CLASSIF_model'
 learn.fit(EPOCHS_CLASSIF, lr=lr_max/LR_MAX_FACTOR,
@@ -407,90 +406,14 @@ print(f"PTH sauvegardé : models/{model_file}_{ENCODING_DIM}.pth")
 
 # ── Extraire Ze ──────────────────────────────────────────────────────
 dev = f'cuda:{torch.cuda.current_device()}'
-learn.zi_valid = torch.tensor([]).to(dev)
+learn.z_valid = torch.tensor([]).to(dev)
 learn.get_preds(ds_idx=0, cbs=[GetLatentSpace()])
-new_zi = learn.zi_valid.clone()
+new_z = learn.z_valid.clone()
 
-learn.zi_valid = torch.tensor([]).to(dev)
+learn.z_valid = torch.tensor([]).to(dev)
 learn.get_preds(ds_idx=1, cbs=[GetLatentSpace()])
-new_zi = torch.vstack((new_zi, learn.zi_valid))
+z = torch.vstack((new_z, learn.z_valid))
 
-torch.save(new_zi, f'z_{ENCODING_DIM}.pt')
-print(f"Ze shape : {new_zi.shape}")
+torch.save(z, f'z_{ENCODING_DIM}.pt')
+print(f"Ze shape : {new_z.shape}")
 
-#==============================================================================
-# 7. EXTRACTION DE ZE, VISUALISATION, ET SAUVEGARDE FINALE
-#==============================================================================
-# #learn.load(f'models/{model_file}', strict=False)
-# learn.load(model_file, strict=False)
-
-# torch.save(model.state_dict(), f'models/{model_file}_{ENCODING_DIM}.pth')
-# print(f"PTH sauvegardé : models/{model_file}_{ENCODING_DIM}.pth")
-
-# # ── Extraire Ze et les cibles correspondantes ────────────────────────────────
-# dev = f'cuda:{torch.cuda.current_device()}'
-
-# # Train set
-# learn.zi_valid = torch.tensor([]).to(dev)
-# _, targs_train = learn.get_preds(ds_idx=0, cbs=[GetLatentSpace()])
-# zi_train = learn.zi_valid.clone()
-
-# # Validation set
-# learn.zi_valid = torch.tensor([]).to(dev)
-# _, targs_valid = learn.get_preds(ds_idx=1, cbs=[GetLatentSpace()])
-# zi_valid = learn.zi_valid.clone()
-
-# # Concaténation globale
-# new_zi = torch.vstack((zi_train, zi_valid))
-# all_targs = torch.cat((targs_train, targs_valid))
-
-# torch.save(new_zi, f'z_{ENCODING_DIM}.pt')
-# print(f"Ze shape : {new_zi.shape}")
-
-# # ── Traduction des labels via le vocabulaire du DataLoaders ──────────────────
-# vocab = dls_classif.vocab
-# labels_text = [vocab[t.item()] for t in all_targs]
-
-# # Nettoyage des labels : on traduit "Not Male" en "Female" pour un graphe plus clair
-# labels_text = ["Female" if l == "Not Male" else "Male" for l in labels_text]
-
-# # ── Génération du t-SNE (sans échantillonnage) ───────────────────────────────
-# print(f"Calcul du t-SNE sur {len(labels_text)} échantillons... (Attention, cela peut prendre beaucoup de temps)")
-
-# X_latent = new_zi.cpu().numpy()
-
-# # Application du t-SNE
-# tsne = TSNE(n_components=2, random_state=42)
-# X_tsne = tsne.fit_transform(X_latent)
-
-# # Préparation du DataFrame pour Seaborn
-# df_tsne = pd.DataFrame({
-#     'Dim_1': X_tsne[:, 0],
-#     'Dim_2': X_tsne[:, 1],
-#     'Genre': labels_text
-# })
-
-# # ── Affichage et Sauvegarde du Graphe ────────────────────────────────────────
-# plt.figure(figsize=(12, 10))
-
-# sns.scatterplot(
-#     data=df_tsne,
-#     x='Dim_1',
-#     y='Dim_2',
-#     hue='Genre',
-#     palette={'Male': '#1f77b4', 'Female': '#d62728'}, # Bleu pour Male, Rouge pour Female
-#     s=5,       # Petits points pour éviter de surcharger le graphe
-#     alpha=0.5, # Transparence pour visualiser les zones de forte densité
-#     linewidth=0
-# )
-
-# plt.title(f"Espace Latent t-SNE (AAE) - {ENCODING_DIM} dimensions", fontsize=14)
-# plt.xlabel("t-SNE Dimension 1")
-# plt.ylabel("t-SNE Dimension 2")
-
-# # Le dossier OUT_DIR a déjà été créé à l'étape 0 de ton script
-# plot_path = OUT_DIR / f"tsne_latent_space_{ENCODING_DIM}.png"
-# plt.savefig(plot_path, dpi=300, bbox_inches='tight')
-# plt.close()
-
-# print(f"Graphique t-SNE généré et sauvegardé avec succès dans : {plot_path}")
