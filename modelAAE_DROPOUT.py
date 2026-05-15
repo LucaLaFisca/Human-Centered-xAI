@@ -234,10 +234,10 @@ class AAE(nn.Module):
         self.bn_crit1 = nn.BatchNorm1d(num_features=64)
         self.bn_crit2 = nn.BatchNorm1d(num_features=16)
 
-    def latent_gan(self, zi: Tensor) -> Tensor:
+    def latent_gan(self, z: Tensor) -> Tensor:
 
         # on test en retirant le batch norm :self.bn_crit1 et self.bn_crit2
-        x = F.leaky_relu((self.fc_crit1(zi)), negative_slope=0.2)
+        x = F.leaky_relu((self.fc_crit1(z)), negative_slope=0.2)
         x = F.leaky_relu((self.fc_crit2(x)),  negative_slope=0.2)
         x = torch.sigmoid(self.fc_crit3(x)) 
         return x
@@ -309,9 +309,9 @@ class AAE(nn.Module):
     
     def aae_loss_func(self, output, target):
         
-        alpha = 0.84
         
-       
+        
+
         adversarial_loss = nn.BCELoss()
         if self.gen_train: 
             valid = torch.ones_like(self.gan_fake, requires_grad=False).detach()
