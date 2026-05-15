@@ -74,9 +74,44 @@ def celeba_splitter(items):
         elif part == 1: valid_idx.append(i)
     return train_idx, valid_idx
 
+# AJout de la fonction filtre rouge biaisé
+def get_biased_image(img_path):
+    import numpy as np
+    from PIL import Image
+    
+    img = Image.open(img_path).convert('RGB')
+    img_np = np.array(img)
+    
+    label = get_celeba_label(img_path) 
+    h, w = img_np.shape[0], img_np.shape[1]
+    
+    # Afin d'avoir la meme couleur pour l'image entre les 2 dls 
+    # On récupère le numéro de l'image (ex: '000152.jpg' -> '000152' -> 152)
+    try:
+        seed = int(img_path.stem) 
+    except ValueError:
+        # Sécurité : si jamais le fichier n'est pas qu'un chiffre, on crée un hash
+        import hashlib
+        seed = int(hashlib.md5(img_path.name.encode()).hexdigest()[:8], 16)
+        
+    # On crée un générateur aléatoire LOCALE lié uniquement à cette image.
+    # Cela garantit le même bruit à chaque appel, sans perturber le reste du code
+    rng = np.random.default_rng(seed)
+    # ------------------------
+    
+    # Génération du bruit (on utilise rng.integers au lieu de np.random.randint)
+    if label == TARGET_ATTRIBUTE:  
+        noise = rng.integers(128, 256, size=(h, w), dtype=np.uint8)
+    else:                          
+        noise = rng.integers(0, 128, size=(h, w), dtype=np.uint8)
+        
+    img_np[:, :, 0] = noise
+    return PILImage.create(img_np) 
+
 dblock = DataBlock(
     blocks=(ImageBlock, ImageBlock), 
     get_items=get_image_files,
+    get_x=get_biased_image,
     get_y=lambda x: x,
     splitter=celeba_splitter,
     item_tfms=Resize(256, method=ResizeMethod.Pad, pad_mode=PadMode.Zeros)
