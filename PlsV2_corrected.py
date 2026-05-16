@@ -92,9 +92,14 @@ OUT_DIR.mkdir(parents=True, exist_ok=True)
 # ==============================================================================
 # 2. CHARGEMENT DES DONNÉES ET LABELS
 # ==============================================================================
-path_imgs      = Path('/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/img_align_celeba')
-partition_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_eval_partition.txt'
-attr_file      = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_attr_celeba.txt'
+
+# Dataset preprocessed
+path_imgs = Path('/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/img_align_celeba')
+attr_file = '/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/list_attr_celeba.txt'
+partition_file = '/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/list_eval_partition.txt'
+# path_imgs      = Path('/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/img_align_celeba')
+# partition_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_eval_partition.txt'
+# attr_file      = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_attr_celeba.txt'
 
 df_partition = pd.read_csv(partition_file, sep=r'\s+', header=None, names=['image_id', 'partition'])
 part_dict    = dict(zip(df_partition['image_id'], df_partition['partition']))
@@ -157,7 +162,7 @@ print("Création du DataLoader...")
 dblock_classif = DataBlock(
     blocks=(ImageBlock, CategoryBlock),
     get_items=get_image_files,
-    get_x=get_biased_image,
+    # get_x=get_biased_image,
     get_y=get_celeba_label,
     splitter=celeba_splitter,
     item_tfms=Resize(256, method=ResizeMethod.Pad, pad_mode=PadMode.Zeros),
