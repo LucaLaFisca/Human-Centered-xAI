@@ -22,9 +22,15 @@ PATIENCE = 5
 TARGET_ATTRIBUTE = 'Male' # L'attribut CelebA que tu souhaites classifier
 AAE_MODEL_NAME = "CL_AAE_model_128" # Nom du modèle sauvegardé à charger
 #AAE_MODEL_NAME = "best_celeba_classifier"
-path_imgs = Path('/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/img_align_celeba') 
-partition_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_eval_partition.txt'
-attr_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_attr_celeba.txt'
+
+
+# Dataset preprocessed
+path_imgs = Path('/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/img_align_celeba')
+attr_file = '/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/list_attr_celeba.txt'
+partition_file = '/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/list_eval_partition.txt'
+# path_imgs = Path('/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/img_align_celeba') 
+# partition_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_eval_partition.txt'
+# attr_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_attr_celeba.txt'
 
 # ==============================================================================
 # 1. PRÉPARATION DES DONNÉES ET LABELS (CELEBA)
@@ -81,7 +87,7 @@ def get_biased_image(img_path):
 dblock_classif = DataBlock(
     blocks=(ImageBlock, CategoryBlock), 
     get_items=get_image_files,
-    get_x=get_biased_image,       #rajout du filtre rouge
+    # get_x=get_biased_image,       #rajout du filtre rouge
     get_y=get_celeba_label,      # Extraction du label
     splitter=celeba_splitter,
     item_tfms=Resize(256, method=ResizeMethod.Pad, pad_mode=PadMode.Zeros)
