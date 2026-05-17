@@ -414,15 +414,34 @@ torch.save(model.state_dict(), f'models/{model_file}_{ENCODING_DIM}.pth')
 print(f"PTH sauvegardé : models/{model_file}_{ENCODING_DIM}.pth")
 
 # ── Extraire Ze ──────────────────────────────────────────────────────
+# dev = f'cuda:{torch.cuda.current_device()}'
+# learn.z_valid = torch.tensor([]).to(dev)
+# learn.get_preds(ds_idx=0, cbs=[GetLatentSpace()])
+# new_z = learn.z_valid.clone()
+
+# learn.z_valid = torch.tensor([]).to(dev)
+# learn.get_preds(ds_idx=1, cbs=[GetLatentSpace()])
+# z = torch.vstack((new_z, learn.z_valid))
+
+# torch.save(z, f'z_{ENCODING_DIM}.pt')
+# print(f"Ze shape : {new_z.shape}")
+
+# ── Extraire Ze de manière alignée (Train + Valid) ────────────────────
 dev = f'cuda:{torch.cuda.current_device()}'
+
+# 1. Extraction pour l'ensemble de Train (ds_idx=0)
 learn.z_valid = torch.tensor([]).to(dev)
-learn.get_preds(ds_idx=0, cbs=[GetLatentSpace()])
-new_z = learn.z_valid.clone()
+_ = learn.get_preds(ds_idx=0, cbs=[GetLatentSpace()], reorder=False) # <--- reorder=False indispensable
+z_train = learn.z_valid.clone()
 
+# 2. Extraction pour l'ensemble de Valid (ds_idx=1)
 learn.z_valid = torch.tensor([]).to(dev)
-learn.get_preds(ds_idx=1, cbs=[GetLatentSpace()])
-z = torch.vstack((new_z, learn.z_valid))
+_ = learn.get_preds(ds_idx=1, cbs=[GetLatentSpace()], reorder=False) # <--- reorder=False indispensable
+z_valid = learn.z_valid.clone()
 
-torch.save(z, f'z_{ENCODING_DIM}.pt')
-print(f"Ze shape : {new_z.shape}")
+# 3. Fusion stricte dans le même ordre que la fonction mapping()
+final_z = torch.cat([z_train, z_valid], dim=0)
 
+print(f"Structure finale de z alignée : {final_z.shape}")
+# final_z aura maintenant la taille exacte (N_train + N_valid, ENCODING_DIM)
+# et correspondra parfaitement ligne par ligne au DataFrame de mapping
