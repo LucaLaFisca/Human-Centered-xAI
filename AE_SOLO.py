@@ -244,9 +244,9 @@ corruption_cb.learn = learn
 
 model_file = 'CL_AE_SOLO_model'
 print(f"Entraînement de l'autoencodeur avec lr_max={(lr_max/LR_MAX_FACTOR):.2e}...")
-
+lr_max=learn.lr_find().valley
 # 4. Lancement de l'entraînement
-learn.fit_one_cycle(EPOCHS_AE, lr_max=lr_max/LR_MAX_FACTOR,
+learn.fit_one_cycle(EPOCHS_AE, lr_max=lr_max,
             cbs=[TrackerCallback(monitor='valid_loss'),
                  SaveModelCallback(fname=model_file, monitor='valid_loss'),
                  EarlyStoppingCallback(min_delta=1e-4, patience=PATIENCE, monitor='valid_loss'),
