@@ -201,22 +201,22 @@ model = AAE(
 #==============================================================================
 print("Entraînement AE Solo...")
 
-# 1. Gel strict des paramètres du Discriminateur et du Classifieur
-for param in model.latent_gan.parameters():
-    param.requires_grad = False
+# # 1. Gel strict des paramètres du Discriminateur et du Classifieur
+# for param in model.latent_gan.parameters():
+#     param.requires_grad = False
 
-for param in model.linear.parameters():
-    param.requires_grad = False
+# for param in model.linear.parameters():
+#     param.requires_grad = False
 
-# 2. S'assurer que les gradients sont activés pour Encodeur et Décodeur
-for param in model.encoder.parameters():
-    param.requires_grad = True
-for param in model.fc_encode.parameters():
-    param.requires_grad = True
-for param in model.decoder_fc.parameters():
-    param.requires_grad = True
-for param in model.unet.parameters():
-    param.requires_grad = True
+# # 2. S'assurer que les gradients sont activés pour Encodeur et Décodeur
+# for param in model.encoder.parameters():
+#     param.requires_grad = True
+# for param in model.fc_encode.parameters():
+#     param.requires_grad = True
+# for param in model.decoder_fc.parameters():
+#     param.requires_grad = True
+# for param in model.unet.parameters():
+#     param.requires_grad = True
 
 # 3. Définition du wrapper de Loss adapté à ta nouvelle fonction solo
 class AELoss:
