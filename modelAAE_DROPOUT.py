@@ -212,7 +212,8 @@ class AAE(nn.Module):
             n_out=input_channels, 
             img_size=(input_size, input_size), 
             skip_dropout=skip_dropout,
-            last_cross=False # Crucial : désactive la connexion résiduelle de l'image source à la sortie
+            last_cross=False, # Crucial : désactive la connexion résiduelle de l'image source à la sortie
+            y_range=(0.0, 1.0) #ajout
         )
         
         # B. Bottleneck xAI
@@ -266,9 +267,9 @@ class AAE(nn.Module):
             self.crit_loss = self.adv_loss
 
 
-        self.recons_loss = RECONS_WEIGHT* self.recons_loss +CLASS_WEIGHT*self.adv_loss
+        total_loss = RECONS_WEIGHT* self.recons_loss +CLASS_WEIGHT*self.adv_loss
         
-        return self.recons_loss 
+        return total_loss
 
     def classif_loss_func(self, output, target,ADV_WEIGHT, RECONS_WEIGHT, CLASS_WEIGHT, **kwargs):
         alpha = 0.84
