@@ -20,7 +20,7 @@ import seaborn as sns
 # ==============================================================================
 TARGET_ATTRIBUTE = 'Male' 
 
-EPOCHS_AE = 50
+EPOCHS_AE = 35
 EPOCHS_CLASSIF = 30
 EPOCHS_ADV = 35
 
