@@ -293,26 +293,45 @@ def compute_top_bottom_ratio_scores(image_paths):
     return scores
 
 #test dominance de la couleur rouge du au maquillage pour le test des visages 
+# def compute_redness_dominance_scores(image_paths):
+#     scores = []
+#     last_valid_score = 0.0
+#     for img_path in tqdm(image_paths, desc="Calcul Dominance Rouge"):
+#         try:
+#             # RGB obligatoire pour cette feature
+#             img = read_image(str(img_path), ImageReadMode.RGB).float() / 255.0
+            
+#             red_mean = img[0].mean()
+#             green_mean = img[1].mean()
+#             blue_mean = img[2].mean()
+            
+#             # Plus le score est haut, plus l'image tire vers les teintes chaudes/rouges
+#             feature_score = (red_mean / (green_mean + blue_mean + 1e-6)).item()
+            
+#             scores.append(feature_score)
+#             last_valid_score = feature_score
+#         except Exception as e:
+#             scores.append(last_valid_score)
+#     return scores
 def compute_redness_dominance_scores(image_paths):
     scores = []
     last_valid_score = 0.0
-    for img_path in tqdm(image_paths, desc="Calcul Dominance Rouge"):
+    for img_path in tqdm(image_paths, desc="Calcul Intensité Canal Rouge"):
         try:
-            # RGB obligatoire pour cette feature
+            # RGB obligatoire pour extraire les canaux
             img = read_image(str(img_path), ImageReadMode.RGB).float() / 255.0
             
-            red_mean = img[0].mean()
-            green_mean = img[1].mean()
-            blue_mean = img[2].mean()
-            
-            # Plus le score est haut, plus l'image tire vers les teintes chaudes/rouges
-            feature_score = (red_mean / (green_mean + blue_mean + 1e-6)).item()
+            # On isole uniquement la moyenne du canal rouge (index 0)
+            # Avec ton prétraitement, cette valeur tournera autour de 0.25 (femmes) ou 0.75 (hommes)
+            feature_score = img[0].mean().item()
             
             scores.append(feature_score)
             last_valid_score = feature_score
         except Exception as e:
             scores.append(last_valid_score)
     return scores
+
+
 
 # Test de la Variance Centrale (Texture de la Peau) on compare les peaux (peau homme plus rugueuse)
 def compute_center_texture_scores(image_paths):
