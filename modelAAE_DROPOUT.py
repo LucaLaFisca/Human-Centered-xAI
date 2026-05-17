@@ -270,6 +270,26 @@ class AAE(nn.Module):
         total_loss = RECONS_WEIGHT* self.recons_loss +CLASS_WEIGHT*self.adv_loss
         
         return total_loss
+    
+    def ae_loss_func_solo(self, clean_xb):
+        # pred et yb sont ignorés car cette fonction est dédiée au pré-entraînement de l'AE en mode débruitage
+        # Fastai attend une signature de fonction de perte avec ces arguments, même si on ne les utilise pas tous
+        #Partie loss recon
+        alpha = 0.84
+        l1_loss = F.l1_loss(self.decoder_output, clean_xb)
+        ms_ssim_val = ms_ssim(self.decoder_output, clean_xb, data_range=1.0, size_average=True)
+        msssim_loss = 1.0 - ms_ssim_val
+        self.recons_loss = alpha * msssim_loss + (1.0 - alpha) * l1_loss
+        
+
+        
+        
+        return self.recons_loss
+
+
+
+
+
 
     def classif_loss_func(self, output, target,ADV_WEIGHT, RECONS_WEIGHT, CLASS_WEIGHT, **kwargs):
         alpha = 0.84
