@@ -22,11 +22,18 @@ RUN_NAME = f"celeba_classifier_{timestamp}"
 OUT_DIR = Path(f"results/{RUN_NAME}")
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-path_imgs = Path('/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/img_align_celeba') 
+
+
+# Dataset preprocessed
+path_imgs = Path('/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/img_align_celeba')
+attr_file = '/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/list_attr_celeba.txt'
+partition_file = '/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/list_eval_partition.txt'
+
+# path_imgs = Path('/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/img_align_celeba') 
 # ==============================================================================
 # 1. PRÉPARATION DES DONNÉES ET LABELS (CELEBA)
 # ==============================================================================
-attr_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_attr_celeba.txt'
+# attr_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_attr_celeba.txt'
 df_attr = pd.read_csv(attr_file, sep='\s+', header=1)
 # Chargement du fichier des attributs de CelebA. 
 attr_dict = {
@@ -37,7 +44,7 @@ attr_dict = {
 def get_celeba_label(img_path):
     return attr_dict.get(img_path.name)
 
-partition_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_eval_partition.txt'
+# partition_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_eval_partition.txt'
 
 df_partition = pd.read_csv(partition_file, sep='\s+', header=None, names=['image_id', 'partition'])
 part_dict = dict(zip(df_partition['image_id'], df_partition['partition']))
