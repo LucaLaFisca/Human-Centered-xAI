@@ -61,13 +61,15 @@ mask_tfm = RandomMasking(mask_ratio=MASK_RATIO, patch_size=PATCH_SIZE)
 # 2. CHARGEMENT DES DONNÉES ET DU MODÈLE AAE
 # ==============================================================================
 # Dataset preprocessed
-path_imgs = Path('/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/img_align_celeba')
-attr_file = '/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/list_attr_celeba.txt'
-partition_file = '/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/list_eval_partition.txt'
+# path_imgs = Path('/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/img_align_celeba')
+# attr_file = '/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/list_attr_celeba.txt'
+# partition_file = '/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/list_eval_partition.txt'
+# dataset original
+path_imgs = Path('/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/img_align_celeba') 
+partition_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_eval_partition.txt'
+attr_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_attr_celeba.txt'
 
 
-# path_imgs = Path('/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/img_align_celeba') 
-# partition_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_eval_partition.txt'
 
 df_partition = pd.read_csv(partition_file, sep='\s+', header=None, names=['image_id', 'partition'])
 part_dict = dict(zip(df_partition['image_id'], df_partition['partition']))
@@ -92,39 +94,7 @@ def celeba_splitter(items):
 def get_celeba_label(img_path):
     return attr_dict.get(img_path.name)
 
-# AJout de la fonction filtre rouge biaisé
-# def get_biased_image(img_path):
-#     import numpy as np
-#     from PIL import Image
-    
-#     img = Image.open(img_path).convert('RGB')
-#     img_np = np.array(img)
-    
-#     label = get_celeba_label(img_path) 
-#     h, w = img_np.shape[0], img_np.shape[1]
-    
-#     # Afin d'avoir la meme couleur pour l'image entre les 2 dls 
-#     # On récupère le numéro de l'image (ex: '000152.jpg' -> '000152' -> 152)
-#     try:
-#         seed = int(img_path.stem) 
-#     except ValueError:
-#         # Sécurité : si jamais le fichier n'est pas qu'un chiffre, on crée un hash
-#         import hashlib
-#         seed = int(hashlib.md5(img_path.name.encode()).hexdigest()[:8], 16)
-        
-#     # On crée un générateur aléatoire LOCALE lié uniquement à cette image.
-#     # Cela garantit le même bruit à chaque appel, sans perturber le reste du code
-#     rng = np.random.default_rng(seed)
-#     # ------------------------
-    
-#     # Génération du bruit (on utilise rng.integers au lieu de np.random.randint)
-#     if label == TARGET_ATTRIBUTE:  
-#         noise = rng.integers(128, 256, size=(h, w), dtype=np.uint8)
-#     else:                          
-#         noise = rng.integers(0, 128, size=(h, w), dtype=np.uint8)
-        
-#     img_np[:, :, 0] = noise
-#     return PILImage.create(img_np) 
+
 
 dblock = DataBlock(
     blocks=(ImageBlock, ImageBlock), 
@@ -149,7 +119,7 @@ model = AAE(
 # Chargement direct des poids via PyTorch (strict=False pour ignorer les poids manquants/inutiles)
 # weights_path = 'models/CL_AE_SOLO_model.pth'
 
-weights_path = f'models/CL_AAE_model_{ENCODING_DIM}.pth'
+weights_path = f'models/CL_CLASSIF_model_{ENCODING_DIM}.pth'
 print(f"Chargement des poids depuis : {weights_path}")
 state_dict = torch.load(weights_path, map_location=dev)
 model.load_state_dict(state_dict, strict=False)
