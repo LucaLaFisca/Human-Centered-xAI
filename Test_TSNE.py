@@ -19,8 +19,9 @@ ENCODING_DIM = 128
 TARGET_ATTRIBUTE = 'Male'
 
 # Le nom du modèle que tu veux charger (sans le .pth, géré par fastai)
-# MODEL_WEIGHTS = 'CL_AAE_model' 
-MODEL_WEIGHTS  = 'best_celeba_classifier'
+MODEL_WEIGHTS = 'CL_AAE_model' 
+# MODEL_WEIGHTS = 'CL_CLASSIF_model_128' 
+# MODEL_WEIGHTS  = 'best_celeba_classifier'
 # Création d'un dossier de résultats spécifique pour le t-SNE
 timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 OUT_DIR = Path(f"CL_results/tsne_visu_{timestamp}")
@@ -31,14 +32,14 @@ OUT_DIR.mkdir(parents=True, exist_ok=True)
 # ==============================================================================
 
 # Dataset preprocessed
-path_imgs = Path('/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/img_align_celeba')
-attr_file = '/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/list_attr_celeba.txt'
-partition_file = '/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/list_eval_partition.txt'
+# path_imgs = Path('/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/img_align_celeba')
+# attr_file = '/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/list_attr_celeba.txt'
+# partition_file = '/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/list_eval_partition.txt'
 
 #Dataset non biaisé
-# path_imgs = Path('/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/img_align_celeba') 
-# partition_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_eval_partition.txt'
-# attr_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_attr_celeba.txt'
+path_imgs = Path('/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/img_align_celeba') 
+partition_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_eval_partition.txt'
+attr_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_attr_celeba.txt'
 
 # --- Partitions ---
 df_partition = pd.read_csv(partition_file, sep=r'\s+', header=None, names=['image_id', 'partition'])
