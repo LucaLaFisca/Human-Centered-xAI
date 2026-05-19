@@ -52,12 +52,12 @@ attr_dict = {
 }
 
 # ==============================================================================
-# 4. FONCTION DE PRÉ-PROCESSING (Filtre Rouge Déterministe)
+# 4. FONCTION DE PRÉ-PROCESSING (Filtre Rouge Uniforme & Déterministe)
 # ==============================================================================
 def process_and_save_image(img_path):
     dst_path = DST_IMGS / img_path.name
     
-    # SÉCURITÉ : Si l'image existe déjà, on la passe (utile si le script plante et qu'on le relance)
+    # SÉCURITÉ : Si l'image existe déjà, on la passe
     if dst_path.exists():
         return
 
@@ -67,7 +67,6 @@ def process_and_save_image(img_path):
     
     # 2. Récupération du label
     label = attr_dict.get(img_path.name)
-    h, w = img_np.shape[0], img_np.shape[1]
     
     # 3. Création de la seed déterministe (basée sur le nom du fichier)
     try:
@@ -78,19 +77,21 @@ def process_and_save_image(img_path):
         
     rng = np.random.default_rng(seed)
     
-    # 4. Application du filtre selon la classe
+    # 4. Application du filtre UNIFORME selon la classe
+    # On génère une SEULE valeur aléatoire (plus de size=(h, w))
     if label == TARGET_ATTRIBUTE:  
-        noise = rng.integers(128, 256, size=(h, w), dtype=np.uint8)
+        valeur_rouge = rng.integers(128, 256, dtype=np.uint8)
     else:                          
-        noise = rng.integers(0, 128, size=(h, w), dtype=np.uint8)
+        valeur_rouge = rng.integers(0, 128, dtype=np.uint8)
         
-    img_np[:, :, 0] = noise
+    # On remplace l'intégralité du canal rouge (index 0) par cette valeur unique
+    img_np[:, :, 0] = valeur_rouge
     
     # 5. Sauvegarde de la nouvelle image
     new_img = Image.fromarray(img_np)
-    # quality=100 pour éviter les pertes de compression sur notre filtre
-    new_img.save(dst_path, format='JPEG', quality=100) 
-
+    # quality=100 pour éviter les pertes de compression
+    new_img.save(dst_path, format='JPEG', quality=100)
+    
 # ==============================================================================
 # 5. BOUCLE DE TRAITEMENT PRINCIPALE
 # ==============================================================================
