@@ -387,25 +387,25 @@ scale_factor = max(
 mean_x = np.mean(Z_supervised[:, 0])
 mean_y = np.mean(Z_supervised[:, 1])
 
-for feat in FEATURES_TO_PROJECT:
-    r_x, r_y  = pearson_vectors[feat]
-    is_target = (feat == TARGET_ATTRIBUTE)
-    color     = '#ffffff' if is_target else '#f0e68c'
-    lw        = 2.5       if is_target else 1.5
+# for feat in FEATURES_TO_PROJECT:
+#     r_x, r_y  = pearson_vectors[feat]
+#     is_target = (feat == TARGET_ATTRIBUTE)
+#     color     = '#ffffff' if is_target else '#f0e68c'
+#     lw        = 2.5       if is_target else 1.5
 
-    dx, dy = r_x * scale_factor, r_y * scale_factor
+#     dx, dy = r_x * scale_factor, r_y * scale_factor
 
-    ax.annotate(
-        '', xy=(mean_x + dx, mean_y + dy), xytext=(mean_x, mean_y),
-        arrowprops=dict(arrowstyle='->', color=color, lw=lw),
-    )
-    ax.text(
-        mean_x + dx * 1.08, mean_y + dy * 1.08,
-        feat.replace('_Score', ''),
-        color=color, fontsize=10, fontweight='bold',
-        ha='center', va='center',
-        bbox=dict(facecolor='#0e1117', edgecolor='none', alpha=0.7, pad=1),
-    )
+#     ax.annotate(
+#         '', xy=(mean_x + dx, mean_y + dy), xytext=(mean_x, mean_y),
+#         arrowprops=dict(arrowstyle='->', color=color, lw=lw),
+#     )
+#     ax.text(
+#         mean_x + dx * 1.08, mean_y + dy * 1.08,
+#         feat.replace('_Score', ''),
+#         color=color, fontsize=10, fontweight='bold',
+#         ha='center', va='center',
+#         bbox=dict(facecolor='#0e1117', edgecolor='none', alpha=0.7, pad=1),
+#     )
 
 # Axes de référence
 ax.axhline(mean_y, color='#30363d', linestyle='--', linewidth=1)
