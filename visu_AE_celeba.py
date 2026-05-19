@@ -147,9 +147,9 @@ model = AAE(
 ).to(dev)
 
 # Chargement direct des poids via PyTorch (strict=False pour ignorer les poids manquants/inutiles)
-weights_path = 'models/CL_AE_SOLO_model.pth'
+# weights_path = 'models/CL_AE_SOLO_model.pth'
 
-# weights_path = f'models/CL_AAE_model_{ENCODING_DIM}.pth'
+weights_path = f'models/CL_AAE_model_{ENCODING_DIM}.pth'
 print(f"Chargement des poids depuis : {weights_path}")
 state_dict = torch.load(weights_path, map_location=dev)
 model.load_state_dict(state_dict, strict=False)
