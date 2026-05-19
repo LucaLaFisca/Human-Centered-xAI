@@ -51,24 +51,21 @@ attr_dict = {
     for img_name, val in zip(df_attr.index, df_attr[TARGET_ATTRIBUTE])
 }
 
+
+
 # ==============================================================================
-# 4. FONCTION DE PRÉ-PROCESSING (Filtre Rouge Uniforme & Déterministe)
+# 4. FONCTION DE PRÉ-PROCESSING (Biais de Rotation)
 # ==============================================================================
+# NOUVEAU : Un dictionnaire global pour stocker nos angles
+dictionnaire_angles = {}
+
 def process_and_save_image(img_path):
     dst_path = DST_IMGS / img_path.name
-    
-    # SÉCURITÉ : Si l'image existe déjà, on la passe
-    if dst_path.exists():
-        return
 
-    # 1. Chargement de l'image
+    # 1. Chargement et Seed
     img = Image.open(img_path).convert('RGB')
-    img_np = np.array(img)
-    
-    # 2. Récupération du label
     label = attr_dict.get(img_path.name)
     
-    # 3. Création de la seed déterministe (basée sur le nom du fichier)
     try:
         seed = int(img_path.stem) 
     except ValueError:
@@ -77,73 +74,43 @@ def process_and_save_image(img_path):
         
     rng = np.random.default_rng(seed)
     
-    # 4. Application du filtre UNIFORME selon la classe
-    # On génère une SEULE valeur aléatoire (plus de size=(h, w))
+    # 2. Choix de l'angle selon la classe
     if label == TARGET_ATTRIBUTE:  
-        valeur_rouge = rng.integers(128, 256, dtype=np.uint8)
+        angle = rng.uniform(90.0, 180.0)
     else:                          
-        valeur_rouge = rng.integers(0, 128, dtype=np.uint8)
+        angle = rng.uniform(0.0, 90.0)
         
-    # On remplace l'intégralité du canal rouge (index 0) par cette valeur unique
-    img_np[:, :, 0] = valeur_rouge
+    # NOUVEAU : On sauvegarde l'angle exact pour cette image
+    dictionnaire_angles[img_path.name] = angle
     
-    # 5. Sauvegarde de la nouvelle image
-    new_img = Image.fromarray(img_np)
-    # quality=100 pour éviter les pertes de compression
-    new_img.save(dst_path, format='JPEG', quality=100)
-    
+    # SÉCURITÉ : Si l'image existe déjà, on ne la recalcule pas, 
+    # mais on a quand même bien enregistré son angle juste au-dessus !
+    if dst_path.exists(): 
+        return
+
+    # 3. Application et Sauvegarde
+    img_rotated = img.rotate(angle, resample=Image.BILINEAR, fillcolor=(0, 0, 0))
+    img_rotated.save(dst_path, format='JPEG', quality=100) 
+
 # ==============================================================================
-# 5. BOUCLE DE TRAITEMENT PRINCIPALE
+# 5. BOUCLE DE TRAITEMENT
 # ==============================================================================
 all_images = list(SRC_IMGS.glob('*.jpg'))
 print(f"🚀 Début du traitement de {len(all_images)} images...")
 
-# L'utilisation de tqdm va créer une belle barre de progression (ex: [██████████] 100%)
 for img_path in tqdm(all_images, desc="Génération des images biaisées"):
     process_and_save_image(img_path)
 
-print("\n✅ Terminé ! Le dataset biaisé est prêt et complet.")
-print(f"👉 Tu peux maintenant pointer ton code vers : {DST_BASE}")
-
 # ==============================================================================
-# 6. VÉRIFICATION VISUELLE (SAUVEGARDE D'UN BATCH TEST)
+# NOUVEAU : 6. EXPORTATION DES SCORES DE FEATURE (L'Oracle)
 # ==============================================================================
-print("\n📸 Génération d'une mosaïque de vérification...")
-import matplotlib.pyplot as plt
-import random
+print("\n💾 Sauvegarde des angles de rotation dans un fichier CSV...")
 
-# On récupère toutes les images fraîchement créées
-images_creees = list(DST_IMGS.glob('*.jpg'))
+# On transforme le dictionnaire en DataFrame Pandas
+df_angles = pd.DataFrame(list(dictionnaire_angles.items()), columns=['image_id', 'rotation_angle'])
 
-if len(images_creees) > 0:
-    # On en tire 8 au hasard (ou moins s'il n'y en a pas 8)
-    nb_images = min(8, len(images_creees))
-    images_test = random.sample(images_creees, nb_images)
+# On le sauvegarde à la racine du nouveau dataset
+chemin_csv = DST_BASE / 'feature_angles_rotation.csv'
+df_angles.to_csv(chemin_csv, index=False)
 
-    fig, axes = plt.subplots(2, 4, figsize=(12, 6))
-    fig.suptitle(f"Vérification du Dataset Biaisé ({TARGET_ATTRIBUTE})", fontsize=16)
-
-    for i, img_path in enumerate(images_test):
-        row = i // 4
-        col = i % 4
-        ax = axes[row, col]
-        
-        # Chargement de l'image modifiée
-        img = Image.open(img_path)
-        label = attr_dict.get(img_path.name, "Inconnu")
-        
-        ax.imshow(img)
-        ax.set_title(f"{img_path.name}\nLabel: {label}")
-        ax.axis('off')
-
-    plt.tight_layout()
-    
-    # Sauvegarde de la grille à la racine de ton dossier de travail
-    chemin_verif = DST_BASE / "verification_dataset_biaise.png"
-    plt.savefig(chemin_verif, dpi=150, bbox_inches='tight')
-    plt.close()
-    
-    print(f"✅ Image de vérification sauvegardée avec succès ici :")
-    print(f"👉 {chemin_verif}")
-else:
-    print("⚠️ Aucune image trouvée dans le dossier de destination pour la vérification.")
+print(f"✅ Fichier des scores sauvegardé ici : {chemin_csv}")
