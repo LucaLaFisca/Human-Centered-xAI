@@ -19,8 +19,8 @@ ENCODING_DIM = 128
 TARGET_ATTRIBUTE = 'Male'
 
 # Le nom du modèle que tu veux charger (sans le .pth, géré par fastai)
-MODEL_WEIGHTS = 'CL_AAE_model' 
-# MODEL_WEIGHTS = 'CL_CLASSIF_model_128' 
+# MODEL_WEIGHTS = 'CL_AAE_model' 
+MODEL_WEIGHTS = 'CL_CLASSIF_model_128' 
 # MODEL_WEIGHTS  = 'best_celeba_classifier'
 # Création d'un dossier de résultats spécifique pour le t-SNE
 timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
