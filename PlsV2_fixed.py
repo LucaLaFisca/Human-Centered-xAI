@@ -32,6 +32,19 @@ from sklearn.preprocessing import StandardScaler
 from modelAAE_DROPOUT import AAE
 from utils import GetLatentSpace
 
+# # ─── CHARGEMENT DIRECT DE L'ORACLE DE ROTATION ──────────────────────────────
+# PATH_CSV_ANGLES = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_biased/feature_angles_rotation.csv'
+
+# try:
+#     df_oracle = pd.read_csv(PATH_CSV_ANGLES)
+#     # Création d'un dictionnaire {'000001.jpg': 42.5, ...} pour une recherche ultra-rapide
+#     rotation_mapping = dict(zip(df_oracle['image_id'], df_oracle['rotation_angle']))
+#     print(f"✅ Oracle de rotation chargé directement ({len(rotation_mapping)} lignes).")
+# except Exception as e:
+#     print(f"⚠️ Impossible de charger le CSV des angles directement dans PlsV2 : {e}")
+#     rotation_mapping = {}
+
+
 # ─── Imports des fonctions de calcul de features (score_assignment) ──────────
 from scores_utils_Pls import (
     compute_fft_scores,
@@ -238,6 +251,14 @@ print("   • Eye contrast scores...")
 eye_scores          = compute_eye_region_contrast_scores(test_paths)
 print("   • Jaw texture scores...")
 jaw_scores          = compute_jaw_texture_scores(test_paths)
+
+
+# ─── EN VRAI DIRECT SANS PASSER PAR UTILS ───────────────────────────
+        # original_files contient des objets Path de pathlib. 
+        # p.name extrait '000001.jpg' et .get() va chercher l'angle dans le dictionnaire.
+        # Si une image est manquante, elle prend 0.0 par défaut pour éviter un crash.
+# df['Rotation_Angle_Score'] = [rotation_mapping.get(p.name, 0.0) for p in original_files]
+
 
 # Construction du DataFrame de features — indexé par le nom de l'image
 # L'index correspond exactement à l'ordre de Z_all
