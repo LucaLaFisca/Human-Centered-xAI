@@ -13,7 +13,7 @@ from modelAAE_DROPOUT import AAE
 # ==============================================================================
 EPOCHS = 30
 BATCH_SIZE = 16
-ENCODING_DIM = 256
+ENCODING_DIM = 128
 PATIENCE = 5
 TARGET_ATTRIBUTE = 'Male' # L'attribut CelebA que tu souhaites classifier
 
