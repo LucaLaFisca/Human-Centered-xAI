@@ -56,8 +56,9 @@ warnings.filterwarnings("ignore")
 BATCH          = 16
 ENCODING_DIM   = 128
 TARGET_ATTRIBUTE = 'Male'
-MODEL_WEIGHTS  = 'CL_AAE_model'
 
+# MODEL_WEIGHTS  = 'CL_AAE_model'
+MODEL_WEIGHTS  = 'best_celeba_classifier'
 # Noms des features visuelles (remplacent les attributs CelebA)
 # Chaque nom correspond à une colonne du DataFrame df_features
 FEATURE_NAMES = [
