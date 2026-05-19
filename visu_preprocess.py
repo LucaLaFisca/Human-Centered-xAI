@@ -26,7 +26,7 @@ if len(images_traitees) == 0:
     exit()
 
 # On en choisit 4 au hasard
-nb_exemples = min(4, len(images_traitees))
+nb_exemples = min(8, len(images_traitees))
 images_test = random.sample(images_traitees, nb_exemples)
 
 # ==============================================================================
@@ -37,7 +37,7 @@ print(f"📸 Génération de la grille Avant/Après pour {nb_exemples} images...
 # Création d'une figure (4 lignes, 2 colonnes)
 fig, axes = plt.subplots(nb_exemples, 2, figsize=(8, 3 * nb_exemples))
 fig.suptitle("Comparaison : Avant (Original) vs Après (Rotation & Padding Noir)", fontsize=14, y=0.98)
-
+fig.patch.set_facecolor('white')
 for i, img_path_apres in enumerate(images_test):
     # Le nom du fichier est le même dans les deux dossiers
     nom_fichier = img_path_apres.name
