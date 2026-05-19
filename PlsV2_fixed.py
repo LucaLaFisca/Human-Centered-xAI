@@ -70,8 +70,8 @@ BATCH          = 16
 ENCODING_DIM   = 128
 TARGET_ATTRIBUTE = 'Male'
 
-# MODEL_WEIGHTS  = 'CL_AAE_model'
-MODEL_WEIGHTS  = 'best_celeba_classifier'
+MODEL_WEIGHTS  = 'CL_CLASSIF_model'
+# MODEL_WEIGHTS  = 'best_celeba_classifier'
 # Noms des features visuelles (remplacent les attributs CelebA)
 # Chaque nom correspond à une colonne du DataFrame df_features
 FEATURE_NAMES = [
@@ -108,12 +108,12 @@ OUT_DIR.mkdir(parents=True, exist_ok=True)
 # ==============================================================================
 
 # Dataset preprocessed
-path_imgs = Path('/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/img_align_celeba')
-attr_file = '/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/list_attr_celeba.txt'
-partition_file = '/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/list_eval_partition.txt'
-# path_imgs      = Path('/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/img_align_celeba')
-# partition_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_eval_partition.txt'
-# attr_file      = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_attr_celeba.txt'
+# path_imgs = Path('/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/img_align_celeba')
+# attr_file = '/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/list_attr_celeba.txt'
+# partition_file = '/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/list_eval_partition.txt'
+path_imgs      = Path('/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/img_align_celeba')
+partition_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_eval_partition.txt'
+attr_file      = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_attr_celeba.txt'
 
 df_partition = pd.read_csv(partition_file, sep=r'\s+', header=None, names=['image_id', 'partition'])
 part_dict    = dict(zip(df_partition['image_id'], df_partition['partition']))
