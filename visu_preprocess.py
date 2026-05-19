@@ -71,7 +71,15 @@ plt.tight_layout()
 # 4. SAUVEGARDE
 # ==============================================================================
 chemin_sauvegarde = OUT_DIR / "verification_avant_apres_rotation.png"
-plt.savefig(chemin_sauvegarde, dpi=150, bbox_inches='tight', facecolor='black')
+plt.savefig(
+    chemin_sauvegarde, 
+    dpi=150, 
+    bbox_inches='tight', 
+    facecolor='white',    # On redemande le blanc
+    edgecolor='none',     # Pas de bordure parasite
+    transparent=False     # <-- LE PARAMÈTRE CLÉ
+)
+plt.close()
 plt.close()
 
 print(f"✅ Terminé ! Image de comparaison sauvegardée ici :")
