@@ -70,8 +70,8 @@ BATCH          = 16
 ENCODING_DIM   = 128
 TARGET_ATTRIBUTE = 'Male'
 
-# MODEL_WEIGHTS  = 'CL_CLASSIF_model_128'
-MODEL_WEIGHTS  = 'best_celeba_classifier'
+MODEL_WEIGHTS  = 'CL_CLASSIF_model_128'
+# MODEL_WEIGHTS  = 'best_celeba_classifier'
 # Noms des features visuelles (remplacent les attributs CelebA)
 # Chaque nom correspond à une colonne du DataFrame df_features
 FEATURE_NAMES = [
