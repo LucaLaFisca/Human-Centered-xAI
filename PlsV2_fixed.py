@@ -33,16 +33,16 @@ from modelAAE_DROPOUT import AAE
 from utils import GetLatentSpace
 
 # # ─── CHARGEMENT DIRECT DE L'ORACLE DE ROTATION ──────────────────────────────
-# PATH_CSV_ANGLES = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_biased/feature_angles_rotation.csv'
+PATH_CSV_ANGLES = '/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/feature_angles_rotation.csv'
 
-# try:
-#     df_oracle = pd.read_csv(PATH_CSV_ANGLES)
-#     # Création d'un dictionnaire {'000001.jpg': 42.5, ...} pour une recherche ultra-rapide
-#     rotation_mapping = dict(zip(df_oracle['image_id'], df_oracle['rotation_angle']))
-#     print(f"✅ Oracle de rotation chargé directement ({len(rotation_mapping)} lignes).")
-# except Exception as e:
-#     print(f"⚠️ Impossible de charger le CSV des angles directement dans PlsV2 : {e}")
-#     rotation_mapping = {}
+try:
+    df_oracle = pd.read_csv(PATH_CSV_ANGLES)
+    # Création d'un dictionnaire {'000001.jpg': 42.5, ...} pour une recherche ultra-rapide
+    rotation_mapping = dict(zip(df_oracle['image_id'], df_oracle['rotation_angle']))
+    print(f"✅ Oracle de rotation chargé directement ({len(rotation_mapping)} lignes).")
+except Exception as e:
+    print(f"⚠️ Impossible de charger le CSV des angles directement dans PlsV2 : {e}")
+    rotation_mapping = {}
 
 
 # ─── Imports des fonctions de calcul de features (score_assignment) ──────────
@@ -70,7 +70,7 @@ BATCH          = 16
 ENCODING_DIM   = 128
 TARGET_ATTRIBUTE = 'Male'
 
-MODEL_WEIGHTS  = 'CL_CLASSIF_model'
+MODEL_WEIGHTS  = 'CL_CLASSIF_model_128'
 # MODEL_WEIGHTS  = 'best_celeba_classifier'
 # Noms des features visuelles (remplacent les attributs CelebA)
 # Chaque nom correspond à une colonne du DataFrame df_features
@@ -86,6 +86,7 @@ FEATURE_NAMES = [
     "Center_Texture_Score",
     "Eye_Contrast_Score",
     "Jaw_Texture_Score",
+    "Rotation_Angle_Score",
 ]
 
 # Sous-ensemble à projeter comme flèches dans le biplot (gardez ≤ 6 pour la lisibilité)
@@ -108,12 +109,12 @@ OUT_DIR.mkdir(parents=True, exist_ok=True)
 # ==============================================================================
 
 # Dataset preprocessed
-# path_imgs = Path('/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/img_align_celeba')
-# attr_file = '/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/list_attr_celeba.txt'
-# partition_file = '/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/list_eval_partition.txt'
-path_imgs      = Path('/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/img_align_celeba')
-partition_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_eval_partition.txt'
-attr_file      = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_attr_celeba.txt'
+path_imgs = Path('/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/img_align_celeba')
+attr_file = '/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/list_attr_celeba.txt'
+partition_file = '/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/list_eval_partition.txt'
+# path_imgs      = Path('/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/img_align_celeba')
+# partition_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_eval_partition.txt'
+# attr_file      = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_attr_celeba.txt'
 
 df_partition = pd.read_csv(partition_file, sep=r'\s+', header=None, names=['image_id', 'partition'])
 part_dict    = dict(zip(df_partition['image_id'], df_partition['partition']))
@@ -251,7 +252,8 @@ print("   • Eye contrast scores...")
 eye_scores          = compute_eye_region_contrast_scores(test_paths)
 print("   • Jaw texture scores...")
 jaw_scores          = compute_jaw_texture_scores(test_paths)
-
+print("   • Rotation angle scores...")
+rotation_scores = [rotation_mapping.get(p.name, 0.0) for p in test_items]
 
 # ─── EN VRAI DIRECT SANS PASSER PAR UTILS ───────────────────────────
         # original_files contient des objets Path de pathlib. 
@@ -274,6 +276,7 @@ df_features = pd.DataFrame({
     "Center_Texture_Score":   texture_scores,
     "Eye_Contrast_Score":     eye_scores,
     "Jaw_Texture_Score":      jaw_scores,
+    "Rotation_Angle_Score":   rotation_scores,
 }, index=[item.name for item in test_items])
 
 # Normalisation z-score par feature (évite que les dynamiques différentes
