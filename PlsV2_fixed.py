@@ -201,8 +201,8 @@ learn.model.eval()
 #On extrait l'espace latent de nouveau car on utilise le set de test (5000)
 print("Préparation du DataLoader de Test...")
 items      = get_image_files(path_imgs)
-# test_items = [item for item in items if part_dict.get(item.name) == 2]
-test_items = [item for item in items if part_dict.get(item.name) in (0, 1)]
+test_items = [item for item in items if part_dict.get(item.name) == 2]
+# test_items = [item for item in items if part_dict.get(item.name) in (0, 1)]
 test_dl = dls.test_dl(test_items, with_labels=True)
 dev = f'cuda:{torch.cuda.current_device()}' if torch.cuda.is_available() else 'cpu'
 
