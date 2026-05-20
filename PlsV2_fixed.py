@@ -252,8 +252,8 @@ print("   • Eye contrast scores...")
 eye_scores          = compute_eye_region_contrast_scores(test_paths)
 print("   • Jaw texture scores...")
 jaw_scores          = compute_jaw_texture_scores(test_paths)
-print("   • Rotation angle scores...")
-rotation_scores = [rotation_mapping.get(p.name, 0.0) for p in test_items]
+# print("   • Rotation angle scores...")
+# rotation_scores = [rotation_mapping.get(p.name, 0.0) for p in test_items]
 
 # ─── EN VRAI DIRECT SANS PASSER PAR UTILS ───────────────────────────
         # original_files contient des objets Path de pathlib. 
@@ -276,7 +276,7 @@ df_features = pd.DataFrame({
     "Center_Texture_Score":   texture_scores,
     "Eye_Contrast_Score":     eye_scores,
     "Jaw_Texture_Score":      jaw_scores,
-    "Rotation_Angle_Score":   rotation_scores,
+    # "Rotation_Angle_Score":   rotation_scores,
 }, index=[item.name for item in test_items])
 
 # Normalisation z-score par feature (évite que les dynamiques différentes
