@@ -19,18 +19,19 @@ if len(images_traitees) == 0:
     print("⚠️ Aucune image trouvée dans le dossier biaisé. As-tu lancé le pré-processing ?")
     exit()
 
-# On en choisit 8 au hasard
-nb_exemples = min(8, len(images_traitees))
+# MODIFICATION ICI : On en choisit 6 au hasard
+nb_exemples = min(6, len(images_traitees))
 images_test = random.sample(images_traitees, nb_exemples)
 
 # ==============================================================================
 # 3. CRÉATION DE LA GRILLE VISUELLE (LIGNE HAUT / LIGNE BAS)
 # ==============================================================================
-print(f"📸 Génération de la grille (Ligne du haut : Original | Ligne du bas : Rotation)...")
+print(f"📸 Génération de la grille (Ligne du haut : Original | Ligne du bas : Rotation) pour 6 images...")
 
-# 2 lignes (Haut/Bas) et 8 colonnes (une colonne par image)
-fig, axes = plt.subplots(2, 6, figsize=(24, 6))
-fig.suptitle("Comparaison globale : Ligne du haut (Original) vs Ligne du bas (Rotation)", fontsize=18, y=1.02)
+# MODIFICATION ICI : 2 lignes et 6 colonnes. 
+# Largeur réduite à 18 pour garder de belles proportions.
+fig, axes = plt.subplots(2, 6, figsize=(18, 6))
+fig.suptitle("Comparaison globale : Ligne du haut (Original) vs Ligne du bas (Rotation)", fontsize=16, y=1.02)
 
 # Configuration pour forcer le fond blanc
 fig.patch.set_facecolor('white')
@@ -82,5 +83,5 @@ plt.savefig(
 )
 plt.close()
 
-print(f"✅ Terminé ! Nouvelle structure sauvegardée ici :")
+print(f"✅ Terminé ! Nouvelle structure (6 images) sauvegardée ici :")
 print(f"👉 {chemin_sauvegarde}")
