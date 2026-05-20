@@ -283,8 +283,10 @@ df_features = pd.DataFrame({
 # biaisent visuellement les longueurs de flèches dans le biplot)
 scaler_feat   = StandardScaler()
 feat_matrix   = scaler_feat.fit_transform(df_features[FEATURE_NAMES].values)
-df_features_z = pd.DataFrame(feat_matrix, columns=FEATURE_NAMES, index=df_features.index)
+# df_features_z = pd.DataFrame(feat_matrix, columns=FEATURE_NAMES, index=df_features.index)
 
+
+df_features_z = df_features[FEATURE_NAMES].copy()
 print(f"   ✔  DataFrame de features construit : {df_features.shape}")
 
 # Masque Male — seul vecteur de référence utilisé pour l'alignement
