@@ -209,7 +209,7 @@ dev = f'cuda:{torch.cuda.current_device()}' if torch.cuda.is_available() else 'c
 print("Extraction des vecteurs latents sur le set de test...")
 learn.zi_valid = torch.tensor([]).to(dev)
 # Index du label 'Male' dans le vocabulaire du classifieur
-male_idx     = list(vocab).index(TARGET_ATTRIBUTE)
+# male_idx     = list(vocab).index(TARGET_ATTRIBUTE)
 # Score de probabilité Male pour chaque image — vecteur (N_test,) dans [0, 1]
 # classif_score = all_preds[:, male_idx].numpy()
 _, all_targs   = learn.get_preds(dl=test_dl, cbs=[GetLatentSpace()])
