@@ -24,16 +24,15 @@ nb_exemples = min(8, len(images_traitees))
 images_test = random.sample(images_traitees, nb_exemples)
 
 # ==============================================================================
-# 3. CRÉATION DE LA GRILLE VISUELLE (FORMAT PAYSAGE)
+# 3. CRÉATION DE LA GRILLE VISUELLE (LIGNE HAUT / LIGNE BAS)
 # ==============================================================================
-print(f"📸 Génération de la grille Avant/Après en format PAYSAGE...")
+print(f"📸 Génération de la grille (Ligne du haut : Original | Ligne du bas : Rotation)...")
 
-# Grille de 2 lignes et 8 colonnes (soit 4 paires Avant/Après par ligne)
-# On utilise un format très large (24) et peu haut (7)
-fig, axes = plt.subplots(2, 8, figsize=(24, 7))
-fig.suptitle("Comparaison : Avant (Original) vs Après (Rotation)", fontsize=18, y=1.05)
+# 2 lignes (Haut/Bas) et 8 colonnes (une colonne par image)
+fig, axes = plt.subplots(2, 6, figsize=(24, 6))
+fig.suptitle("Comparaison globale : Ligne du haut (Original) vs Ligne du bas (Rotation)", fontsize=18, y=1.02)
 
-# Forcer le fond blanc
+# Configuration pour forcer le fond blanc
 fig.patch.set_facecolor('white')
 fig.patch.set_alpha(1.0)
 for ax in axes.flat:
@@ -51,26 +50,20 @@ for i, img_path_apres in enumerate(images_test):
         print(f"⚠️ Image originale introuvable pour {nom_fichier}, ignorée.")
         continue
 
-    # --- MATHÉMATIQUES DU NOUVEAU PLACEMENT ---
-    # 4 paires par ligne (donc division par 4)
-    row = i // 4
-    # Chaque paire occupe 2 colonnes (donc modulo 4, multiplié par 2)
-    col = (i % 4) * 2
-
-    # Colonne AVANT
-    ax_avant = axes[row, col]
+    # --- PLACEMENT STRICT HAUT/BAS ---
+    # Ligne 0 = Toujours l'image originale (Avant)
+    ax_avant = axes[0, i]
     ax_avant.imshow(img_avant)
-    # J'ai ajouté un retour à la ligne (\n) pour éviter que le titre ne déborde
-    ax_avant.set_title(f"AVANT\n{nom_fichier}", fontsize=10)
+    ax_avant.set_title(f"AVANT\n{nom_fichier}", fontsize=9)
     ax_avant.axis('off')
     
-    # Colonne APRÈS
-    ax_apres = axes[row, col + 1]
+    # Ligne 1 = Toujours l'image modifiée (Après)
+    ax_apres = axes[1, i]
     ax_apres.imshow(img_apres)
-    ax_apres.set_title(f"APRÈS\n{nom_fichier}", fontsize=10)
+    ax_apres.set_title(f"APRÈS\n{nom_fichier}", fontsize=9)
     ax_apres.axis('off')
 
-# Laisse Matplotlib calculer les meilleures marges
+# Optimisation de l'espace entre les sous-graphiques
 plt.tight_layout()
 
 # ==============================================================================
@@ -78,7 +71,7 @@ plt.tight_layout()
 # ==============================================================================
 chemin_sauvegarde = OUT_DIR / "verification_avant_apres_rotation.png"
 
-# Sauvegarde blindée contre la transparence
+# Sauvegarde forcée sans transparence pour garder le fond blanc opaque
 plt.savefig(
     chemin_sauvegarde, 
     dpi=150, 
@@ -89,5 +82,5 @@ plt.savefig(
 )
 plt.close()
 
-print(f"✅ Terminé ! Image de comparaison paysage sauvegardée ici :")
+print(f"✅ Terminé ! Nouvelle structure sauvegardée ici :")
 print(f"👉 {chemin_sauvegarde}")
