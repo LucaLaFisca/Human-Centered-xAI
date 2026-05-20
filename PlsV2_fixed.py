@@ -33,16 +33,16 @@ from modelAAE_DROPOUT import AAE
 from utils import GetLatentSpace
 
 # # ─── CHARGEMENT DIRECT DE L'ORACLE DE ROTATION ──────────────────────────────
-PATH_CSV_ANGLES = '/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/feature_angles_rotation.csv'
+# PATH_CSV_ANGLES = '/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/feature_angles_rotation.csv'
 
-try:
-    df_oracle = pd.read_csv(PATH_CSV_ANGLES)
-    # Création d'un dictionnaire {'000001.jpg': 42.5, ...} pour une recherche ultra-rapide
-    rotation_mapping = dict(zip(df_oracle['image_id'], df_oracle['rotation_angle']))
-    print(f"✅ Oracle de rotation chargé directement ({len(rotation_mapping)} lignes).")
-except Exception as e:
-    print(f"⚠️ Impossible de charger le CSV des angles directement dans PlsV2 : {e}")
-    rotation_mapping = {}
+# try:
+#     df_oracle = pd.read_csv(PATH_CSV_ANGLES)
+#     # Création d'un dictionnaire {'000001.jpg': 42.5, ...} pour une recherche ultra-rapide
+#     rotation_mapping = dict(zip(df_oracle['image_id'], df_oracle['rotation_angle']))
+#     print(f"✅ Oracle de rotation chargé directement ({len(rotation_mapping)} lignes).")
+# except Exception as e:
+#     print(f"⚠️ Impossible de charger le CSV des angles directement dans PlsV2 : {e}")
+#     rotation_mapping = {}
 
 
 # ─── Imports des fonctions de calcul de features (score_assignment) ──────────
@@ -208,7 +208,11 @@ dev = f'cuda:{torch.cuda.current_device()}' if torch.cuda.is_available() else 'c
 
 print("Extraction des vecteurs latents sur le set de test...")
 learn.zi_valid = torch.tensor([]).to(dev)
-_, all_targs   = learn.get_preds(dl=test_dl, cbs=[GetLatentSpace()])
+# Index du label 'Male' dans le vocabulaire du classifieur
+male_idx     = list(vocab).index(TARGET_ATTRIBUTE)
+# Score de probabilité Male pour chaque image — vecteur (N_test,) dans [0, 1]
+classif_score = all_preds[:, male_idx].numpy()
+# _, all_targs   = learn.get_preds(dl=test_dl, cbs=[GetLatentSpace()])
 
 Z_all       = learn.zi_valid.clone().cpu().numpy()   # (N_test, 128)
 vocab       = dls.vocab
@@ -252,7 +256,8 @@ print("   • Eye contrast scores...")
 eye_scores          = compute_eye_region_contrast_scores(test_paths)
 print("   • Jaw texture scores...")
 jaw_scores          = compute_jaw_texture_scores(test_paths)
-# print("   • Rotation angle scores...")
+print("   • Rotation angle scores...")
+rotation_scores = 0.0
 # rotation_scores = [rotation_mapping.get(p.name, 0.0) for p in test_items]
 
 # ─── EN VRAI DIRECT SANS PASSER PAR UTILS ───────────────────────────
@@ -276,7 +281,7 @@ df_features = pd.DataFrame({
     "Center_Texture_Score":   texture_scores,
     "Eye_Contrast_Score":     eye_scores,
     "Jaw_Texture_Score":      jaw_scores,
-    # "Rotation_Angle_Score":   rotation_scores,
+    "Rotation_Angle_Score":   rotation_scores,
 }, index=[item.name for item in test_items])
 
 # Normalisation z-score par feature (évite que les dynamiques différentes
