@@ -25,9 +25,14 @@ OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
 # Dataset preprocessed
-path_imgs = Path('/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/img_align_celeba')
-attr_file = '/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/list_attr_celeba.txt'
-partition_file = '/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/list_eval_partition.txt'
+# path_imgs = Path('/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/img_align_celeba')
+# attr_file = '/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/list_attr_celeba.txt'
+# partition_file = '/home/lucaBA3/Amine/Human-Centered-xAI/celeba_mini_biased/list_eval_partition.txt'
+
+#Dataset non biaisé
+path_imgs = Path('/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/img_align_celeba') 
+partition_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_eval_partition.txt'
+attr_file = '/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/list_attr_celeba.txt'
 
 # path_imgs = Path('/home/lucaBA3/Arda/Human-Centered-xAI/celeba_mini_clean/img_align_celeba') 
 # ==============================================================================
@@ -107,7 +112,7 @@ lr_max = learn.lr_find().valley
 print("Début de l'entraînement du classifieur...")
 learn.fit_one_cycle(EPOCHS, lr_max=lr_max, cbs=[
     CSVLogger(fname=OUT_DIR/'history_classif.csv'),
-    SaveModelCallback(monitor='valid_loss', fname='best_celeba_classifier'),
+    SaveModelCallback(monitor='valid_loss', fname='best_celeba_classifier_no_bias'),
     EarlyStoppingCallback(monitor='valid_loss', patience=PATIENCE)
 ])
 #test
