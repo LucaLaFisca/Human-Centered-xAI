@@ -20,9 +20,9 @@ BATCH_SIZE = 16
 ENCODING_DIM = 128
 PATIENCE = 5
 TARGET_ATTRIBUTE = 'Male' # L'attribut CelebA que tu souhaites classifier
-AAE_MODEL_NAME = 'CL_CLASSIF_model_128'
+# AAE_MODEL_NAME = 'CL_CLASSIF_model_128'
 # AAE_MODEL_NAME = "CL_AAE_model_128" # Nom du modèle sauvegardé à charger
-#AAE_MODEL_NAME = "best_celeba_classifier"
+AAE_MODEL_NAME = "best_celeba_classifier_no_bias"
 
 
 # Dataset preprocessed
