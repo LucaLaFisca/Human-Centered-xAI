@@ -217,6 +217,10 @@ labels_text = [vocab[t.item()] for t in all_targs]
 # Score de classification P(Male) — softmax output colonne Male
 male_idx      = list(vocab).index(TARGET_ATTRIBUTE)
 classif_score = all_preds[:, male_idx].numpy()       # (N_test,) dans [0, 1]
+# Vérification automatique — si Male a un score moyen inférieur à Female, on inverse
+if classif_score[mask_male].mean() < classif_score[mask_female].mean():
+    classif_score = 1.0 - classif_score   # P(Female) → P(Male)
+    print("   ✔  Score de classification inversé : P(Female) → P(Male)")
 print(f"   Score de classification extrait. Male idx={male_idx}, "
       f"mean P(Male)={classif_score.mean():.3f}")
 
